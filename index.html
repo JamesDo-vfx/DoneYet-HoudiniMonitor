@@ -148,6 +148,10 @@
         let activeBreakpointClass = "";
         let overviewLayoutSignature = "";
         let localDbFileName = LOCAL_DB_FILE_NAME;
+        let currentViewMode = localStorage.getItem("jdtool-dashboard-view-mode") || "rail";
+        if (!["rail", "list", "machines"].includes(currentViewMode)) {
+            currentViewMode = "rail";
+        }
         const VIEW_SOURCE_STORAGE_KEY = "jdtool-dashboard-view-source";
         const sourceAvailability = {
             local_db: { available: false, message: "Local DB unavailable." },
@@ -271,6 +275,34 @@
 
         function getFirebaseMirrorUrl() {
             return normalizeFirebaseMirrorUrl(firebaseUrlFromRuntime || FIREBASE_DATABASE_URL);
+        }
+
+        async function clearFirebaseMirrorViaPatch(firebaseUrl) {
+            const readResp = await fetch(firebaseUrl, { cache: "no-store" });
+            if (!readResp.ok) throw new Error(`HTTP ${readResp.status}`);
+
+            const payload = await readResp.json().catch(() => ({}));
+            if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+                return { deletedCount: 0 };
+            }
+
+            const keys = Object.keys(payload).filter(Boolean);
+            if (!keys.length) {
+                return { deletedCount: 0 };
+            }
+
+            const clearPayload = {};
+            keys.forEach((key) => {
+                clearPayload[key] = null;
+            });
+
+            const clearResp = await fetch(firebaseUrl, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(clearPayload)
+            });
+            if (!clearResp.ok) throw new Error(`HTTP ${clearResp.status}`);
+            return { deletedCount: keys.length };
         }
 
         function markSourceAvailability(source, available, message) {
@@ -580,6 +612,24 @@
             return parsedDate ? readableDateTimeFormatter.format(parsedDate) : "N/A";
         }
 
+        function safeTableValue(value, fallback = "-") {
+            if (value === null || value === undefined) return fallback;
+            const text = String(value).trim();
+            if (!text) return fallback;
+            if (text.toUpperCase() === "N/A" || text.toUpperCase() === "UNKNOWN") return fallback;
+            return text;
+        }
+
+        function formatTableFrame(value) {
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? String(Math.round(numeric)) : "-";
+        }
+
+        function formatTableProgress(value) {
+            const numeric = Number(value);
+            return Number.isFinite(numeric) ? `${Math.round(clamp(numeric, 0, 100))}%` : "-";
+        }
+
         function applyDensityCompensation() {
             const dpr = window.devicePixelRatio || 1;
             const widthCandidates = [
@@ -801,9 +851,8 @@
             try {
                 if (selectedViewSource === "firebase_mirror") {
                     const firebaseUrl = getFirebaseMirrorUrl();
-                    const resp = await fetch(firebaseUrl, { method: "DELETE" });
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    console.info(`[JDTool/UI] Clear action target=firebase_mirror url=${firebaseUrl}`);
+                    const result = await clearFirebaseMirrorViaPatch(firebaseUrl);
+                    console.info(`[JDTool/UI] Clear action target=firebase_mirror url=${firebaseUrl} deleted=${result.deletedCount}`);
                 } else {
                     const resp = await fetch("/api/clear_all", { method: "POST" });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -888,9 +937,18 @@
         };
 
         init();
-        window.addEventListener("resize", applyDensityCompensation);
-        window.addEventListener("load", applyDensityCompensation);
-        window.addEventListener("orientationchange", applyDensityCompensation);
+        window.addEventListener("resize", () => {
+            applyDensityCompensation();
+            requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
+        });
+        window.addEventListener("load", () => {
+            applyDensityCompensation();
+            requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
+        });
+        window.addEventListener("orientationchange", () => {
+            applyDensityCompensation();
+            requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
+        });
         window.addEventListener("beforeunload", () => {
             stopSourcePolling();
             if (serviceStatusPollTimer) {
@@ -899,7 +957,10 @@
             }
         });
         if (window.visualViewport) {
-            window.visualViewport.addEventListener("resize", applyDensityCompensation);
+            window.visualViewport.addEventListener("resize", () => {
+                applyDensityCompensation();
+                requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
+            });
         }
 
         const colors = ["#ff72c1", "#8fe6ff", "#58ff8a", "#f5f18f", "#9db2ff", "#ffce7e", "#ff7b8a", "#75ffd6"];
@@ -961,6 +1022,13 @@
             if (!FILTERS.some((filter) => filter.id === filterId)) return;
             currentOverviewFilter = filterId;
             renderUI(lastData);
+        };
+
+        window.setViewMode = (mode) => {
+            if (!["rail", "list", "machines"].includes(mode)) return;
+            currentViewMode = mode;
+            localStorage.setItem("jdtool-dashboard-view-mode", mode);
+            if (lastData) renderUI(lastData);
         };
 
         window.scrollShotRail = (button) => {
@@ -1410,6 +1478,46 @@
             return `${usedMb} / ${totalMb} MB`;
         }
 
+        function humanizeWatchdogReason(reasonCode, eventType = "crash") {
+            const code = String(reasonCode || "").trim().toLowerCase();
+            const knownReasons = {
+                houdini_process_missing: "Houdini process is no longer running on the worker machine.",
+                heartbeat_timeout: "The watchdog stopped receiving heartbeat updates from Houdini.",
+                heartbeat_stall: "Heartbeat updates stopped for too long while the job was still active.",
+                dynamic_stall_timeout: "Houdini is still alive, but no new render progress was detected for too long.",
+                dynamic_suspect_timeout: "Heartbeat updates are slower than expected and the job may be becoming unstable.",
+                long_frame_with_live_pid: "Houdini is still running, but the current frame is taking unusually long.",
+                heartbeat_recent_pid_unconfirmed: "A recent heartbeat was seen, but the Houdini process could not be confirmed yet.",
+                watchdog_crash_persisted: "The job was already marked as crashed in the watchdog state.",
+                watchdog_stall_persisted: "The job was already marked as stalled in the watchdog state.",
+                monitoring_stopped: "Crash monitoring was stopped, so the worker is no longer being watched.",
+                manual_stop: "Crash monitoring was stopped manually."
+            };
+            if (knownReasons[code]) {
+                return knownReasons[code];
+            }
+            if (code) {
+                const label = code.replace(/_/g, " ").trim();
+                return label.charAt(0).toUpperCase() + label.slice(1) + ".";
+            }
+            return eventType === "stall"
+                ? "The render stopped making progress for longer than the allowed watchdog threshold."
+                : "The render process stopped unexpectedly and the watchdog marked it as crashed.";
+        }
+
+        function formatDetectionStatusLabel(value) {
+            const code = String(value || "").trim().toUpperCase();
+            const labels = {
+                RUNNING: "Watchdog is running normally.",
+                STALLED: "Watchdog detected a stall state.",
+                CRASHED: "Watchdog detected a crash state.",
+                STOPPED: "Watchdog monitoring is currently stopped.",
+                "NOT MONITORED": "This worker is not currently monitored by the watchdog.",
+                ERROR: "Watchdog monitoring reported an internal error."
+            };
+            return labels[code] || (code ? `${code.replace(/_/g, " ")}` : "N/A");
+        }
+
         function renderWorkerDetails(worker) {
             const detectionState = getCrashDetectionState(worker);
             const runtimeRows = [
@@ -1417,6 +1525,7 @@
                 ["Output Path", worker.output_dir || worker.output_path || "N/A"],
                 ["Last Active", formatReadableDateTime(worker.lastHeartbeatTs)],
                 ["Render Tracking", detectionState.label],
+                ["Watchdog Summary", formatDetectionStatusLabel(worker.crashDetectionStatus || worker.crash_detection_status)],
                 [
                     "Status",
                     worker.isCrashed
@@ -1430,10 +1539,12 @@
             ];
 
             if (worker.isCrashed) {
-                runtimeRows.push(["Crash Reason", worker.crashReason || "houdini_process_missing"]);
+                runtimeRows.push(["What Happened", humanizeWatchdogReason(worker.crashReason || "houdini_process_missing", "crash")]);
+                runtimeRows.push(["Technical Reason", worker.crashReason || "houdini_process_missing"]);
                 runtimeRows.push(["Crashed At", worker.crashedAt || "N/A"]);
             } else if (worker.isStalled) {
-                runtimeRows.push(["Stall Reason", worker.stallReason || "heartbeat_stall"]);
+                runtimeRows.push(["What Happened", humanizeWatchdogReason(worker.stallReason || "heartbeat_stall", "stall")]);
+                runtimeRows.push(["Technical Reason", worker.stallReason || "heartbeat_stall"]);
                 runtimeRows.push(["Stalled At", worker.stalledAt || "N/A"]);
             } else {
                 runtimeRows.push(["Current Frame", String(worker.currentFrame)]);
@@ -1850,6 +1961,76 @@
             return shotArray;
         }
 
+        function buildMachineRows(shots) {
+            const groups = new Map();
+
+            shots.forEach((shot) => {
+                shot.workers.forEach((worker, index) => {
+                    const machineName = safeTableValue(
+                        worker.machineName
+                        || worker.machine_name
+                        || worker.hostName
+                        || worker.host_name
+                        || worker.hostname
+                        || worker.workerName
+                    );
+                    const workerName = safeTableValue(worker.workerName);
+                    const groupKey = workerName || machineName || `worker_${index}`;
+                    const shotName = safeTableValue(worker.shotName || shot.name);
+                    const currentFrame = formatTableFrame(worker.isCrashed || worker.isStalled ? worker.lastFrameSeen : worker.currentFrame);
+                    const startFrame = formatTableFrame(worker.startFrame);
+                    const endFrame = formatTableFrame(worker.endFrame);
+                    const progress = formatTableProgress(worker.progress);
+                    const eta = safeTableValue(worker.eta, "-");
+                    const detectionReason = safeTableValue(getCrashDetectionState(worker).reason, "-");
+                    const lastUpdate = safeTableValue(formatReadableDateTime(worker.lastHeartbeatTs || worker.updated_at), "-");
+                    const sortTs = parseTimestampToDate(worker.lastHeartbeatTs || worker.updated_at)?.getTime() || 0;
+
+                    if (!groups.has(groupKey)) {
+                        groups.set(groupKey, {
+                            id: groupKey,
+                            workerName,
+                            machineName,
+                            accent: worker.color || "#51ff84",
+                            accentSoft: worker.softGlow || "rgba(81, 255, 132, 0.18)",
+                            sortTs,
+                            rows: []
+                        });
+                    }
+
+                    const group = groups.get(groupKey);
+                    group.sortTs = Math.max(group.sortTs, sortTs);
+                    group.rows.push({
+                        id: `${worker.renderKey || worker.workerName || shot.name}_${index}`,
+                        shotName,
+                        currentFrame,
+                        startFrame,
+                        endFrame,
+                        progress,
+                        eta,
+                        lastUpdate,
+                        detectionReason,
+                        sortTs
+                    });
+                });
+            });
+
+            return Array.from(groups.values())
+                .map((group) => ({
+                    ...group,
+                    rows: group.rows.sort((a, b) => {
+                        if (b.sortTs !== a.sortTs) return b.sortTs - a.sortTs;
+                        return String(a.shotName).localeCompare(String(b.shotName));
+                    })
+                }))
+                .sort((a, b) => {
+                    if (b.sortTs !== a.sortTs) return b.sortTs - a.sortTs;
+                    const machineCompare = String(a.machineName).localeCompare(String(b.machineName));
+                    if (machineCompare !== 0) return machineCompare;
+                    return String(a.workerName).localeCompare(String(b.workerName));
+                });
+        }
+
         function renderShotTimeline(shot) {
             return shot.workers.map((worker) => {
                 const totalGlobal = Math.max(1, shot.gEnd - shot.gStart + 1);
@@ -1893,19 +2074,21 @@
                                     </div>
                                 </div>
 
-                                <div class="worker-field field-start">
-                                    <div class="field-label">Start (ROP)</div>
-                                    <div class="value-display">${escapeHtml(worker.startFrame)}</div>
-                                </div>
-
-                                <div class="worker-field field-end">
-                                    <div class="field-label">End (ROP)</div>
-                                    <div class="value-display">${escapeHtml(worker.endFrame)}</div>
-                                </div>
-
-                                <div class="worker-field field-current">
-                                    <div class="field-label">Current</div>
-                                    <div class="value-display">${escapeHtml(currentDisplay)}</div>
+                                <div class="worker-field field-frame-summary">
+                                    <div class="worker-frame-grid">
+                                        <div class="frame-stat frame-stat-current">
+                                            <div class="frame-stat-label">Current</div>
+                                            <div class="frame-stat-value">${escapeHtml(currentDisplay)}</div>
+                                        </div>
+                                        <div class="frame-stat">
+                                            <div class="frame-stat-label">Start Frame</div>
+                                            <div class="frame-stat-value">${escapeHtml(worker.startFrame)}</div>
+                                        </div>
+                                        <div class="frame-stat">
+                                            <div class="frame-stat-label">End Frame</div>
+                                            <div class="frame-stat-value">${escapeHtml(worker.endFrame)}</div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="worker-field field-file">
@@ -2037,7 +2220,13 @@
                         </div>
 
                         <div class="shot-card__main">
-                            <div class="shot-card__title">${escapeHtml(shot.name)}</div>
+                            <div class="shot-card__title" data-marquee-title data-overflowing="false" title="${escapeAttr(shot.name)}" aria-label="${escapeAttr(shot.name)}">
+                                <span class="shot-card__title-track" data-title-marquee>
+                                    <span class="shot-card__title-text" data-title-primary>${escapeHtml(shot.name)}</span>
+                                    <span class="shot-card__title-gap" aria-hidden="true"></span>
+                                    <span class="shot-card__title-text shot-card__title-text--clone" aria-hidden="true">${escapeHtml(shot.name)}</span>
+                                </span>
+                            </div>
                             <div class="shot-card__subtitle">${escapeHtml(getShotSubtitle(shot))}</div>
                         </div>
 
@@ -2198,7 +2387,11 @@
 
                     <div class="overview-toolbar__meta">
                         <div class="overview-toolbar__meta-label">View Mode</div>
-                        <div class="overview-toolbar__meta-value">${viewModeLabel}</div>
+                        <div class="view-mode-switch source-switch" role="group" aria-label="Dashboard view mode">
+                            <button class="source-switch__button ${currentViewMode === 'rail' ? 'is-active' : ''}" type="button" onclick="setViewMode('rail')">Card Rail</button>
+                            <button class="source-switch__button ${currentViewMode === 'list' ? 'is-active' : ''}" type="button" onclick="setViewMode('list')">List View</button>
+                            <button class="source-switch__button ${currentViewMode === 'machines' ? 'is-active' : ''}" type="button" onclick="setViewMode('machines')">Machines</button>
+                        </div>
                     </div>
                 </section>
             `;
@@ -2241,6 +2434,39 @@
                         <section class="empty-state filtered-empty-state">
                             <h2>No Shots Match This Filter</h2>
                             <p>Try another filter to bring the active cards back into the overview.</p>
+                        </section>
+                    </section>
+                `;
+            }
+
+            
+            if (currentViewMode === "list") {
+                return `
+                    <section class="overview-stage is-list-mode">
+                        <section class="overview-panel">
+                            <div id="overviewToolbarMount"></div>
+                            <div class="shot-list-header">
+                                <div class="sl-cell sl-name">Job Name</div>
+                                <div class="sl-cell sl-status">Status</div>
+                                <div class="sl-cell sl-workers">Workers</div>
+                                <div class="sl-cell sl-frames">Frames</div>
+                                <div class="sl-cell sl-progress">Progress</div>
+                                <div class="sl-cell sl-eta">Est. Finish</div>
+                                <div class="sl-cell sl-alert">Alert Summary</div>
+                                <div class="sl-cell sl-action"></div>
+                            </div>
+                            <div id="shotListView" class="shot-list-container"></div>
+                        </section>
+                    </section>
+                `;
+            }
+
+            if (currentViewMode === "machines") {
+                return `
+                    <section class="overview-stage is-machines-mode">
+                        <section class="overview-panel">
+                            <div id="overviewToolbarMount"></div>
+                            <div id="machinesTableView" class="machines-table-container"></div>
                         </section>
                     </section>
                 `;
@@ -2301,6 +2527,136 @@
 
             cardButton.addEventListener("pointermove", handleShotCardPointerMove);
             cardButton.addEventListener("pointerleave", resetShotCardPointer);
+            refreshShotCardTitleMarquees(card);
+        }
+
+        function refreshShotCardTitleMarquees(scope = document) {
+            const root = scope && typeof scope.querySelectorAll === "function" ? scope : document;
+            const titles = root.querySelectorAll("[data-marquee-title]");
+            const marqueeGap = 36;
+
+            titles.forEach((titleEl) => {
+                const primaryText = titleEl.querySelector("[data-title-primary]");
+                if (!primaryText) return;
+
+                titleEl.dataset.overflowing = "false";
+                titleEl.style.removeProperty("--marquee-distance");
+                titleEl.style.removeProperty("--marquee-duration");
+
+                const availableWidth = Math.ceil(titleEl.clientWidth || 0);
+                const textWidth = Math.ceil(primaryText.scrollWidth || 0);
+                const isOverflowing = availableWidth > 0 && textWidth > (availableWidth + 2);
+
+                if (!isOverflowing) return;
+
+                const travelDistance = textWidth + marqueeGap;
+                const durationSeconds = Math.max(6, Math.min(18, travelDistance / 28));
+
+                titleEl.dataset.overflowing = "true";
+                titleEl.style.setProperty("--marquee-distance", `${travelDistance}px`);
+                titleEl.style.setProperty("--marquee-duration", `${durationSeconds}s`);
+            });
+        }
+
+        function renderShotListRow(shot) {
+            const isSelected = shot.name === selectedShotName;
+            return `
+                <article class="shot-list-row ${isSelected ? 'is-selected' : ''} status-${shot.statusKey}" onclick="openShotDetailPanelByCard(this)" data-shot-name="${escapeAttr(shot.name)}" data-shot-card="true" style="--shot-accent:${shot.accent};">
+                    <div class="sl-cell sl-name">
+                        <div class="sl-title">${escapeHtml(shot.name)}</div>
+                        <div class="sl-type">${escapeHtml(shot.modeLabel)}</div>
+                    </div>
+                    <div class="sl-cell sl-status">
+                        <span class="sl-status-text" style="color:${shot.accent}">${escapeHtml(shot.statusLabel)}</span>
+                    </div>
+                    <div class="sl-cell sl-workers">
+                        <span class="sl-label">Workers</span>
+                        <strong>${shot.workerCount}</strong>
+                    </div>
+                    <div class="sl-cell sl-frames">
+                        <span class="sl-label">Frames</span>
+                        <strong>${shot.frameLabel}</strong>
+                    </div>
+                    <div class="sl-cell sl-progress">
+                        <div class="sl-prog-bar"><div class="sl-prog-fill" style="width:${shot.progress}%; background-color:${shot.accent};"></div></div>
+                        <strong>${shot.progress}%</strong>
+                    </div>
+                    <div class="sl-cell sl-eta">
+                        <span class="sl-label">ETA / Finish</span>
+                        <strong>${escapeHtml(shot.estimatedFinishLabel)}</strong>
+                    </div>
+                    <div class="sl-cell sl-alert">
+                        <span class="pulse-dot"></span>
+                        ${escapeHtml(shot.alertSummary)}
+                    </div>
+                    <div class="sl-cell sl-action">
+                        <button class="btn-inspect" type="button">Inspect</button>
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderMachinesTable(groups) {
+            if (!groups.length) {
+                return `
+                    <section class="empty-state filtered-empty-state">
+                        <h2>No Machines Match This Filter</h2>
+                        <p>Try another filter to bring machine rows back into view.</p>
+                    </section>
+                `;
+            }
+
+            const columns = [
+                ["shotName", "Shot Name", "", "col-shot-name"],
+                ["currentFrame", "Current Frame", "is-numeric", "col-frame-current"],
+                ["startFrame", "Start Frame", "is-numeric", "col-frame-start"],
+                ["endFrame", "End Frame", "is-numeric", "col-frame-end"],
+                ["progress", "Progress", "is-numeric", "col-progress"],
+                ["eta", "ETA", "is-numeric", "col-eta"],
+                ["lastUpdate", "Last Update", "", "col-last-update"],
+                ["detectionReason", "Detection Reason", "is-truncate", "col-detection"]
+            ];
+
+            return `
+                <div class="machine-groups">
+                    ${groups.map((group) => `
+                        <section class="machine-group" data-machine-group="${escapeAttr(group.id)}" style="--machine-group-accent:${escapeAttr(group.accent)}; --machine-group-accent-soft:${escapeAttr(group.accentSoft)};">
+                            <div class="machine-group__header">
+                                <div class="machine-group__eyebrow">Worker Group</div>
+                                <div class="machine-group__title-row">
+                                    <h3>${escapeHtml(group.workerName)}</h3>
+                                    <span class="machine-group__meta">${escapeHtml(group.machineName)}</span>
+                                    <span class="machine-group__count">${group.rows.length} ${pluralize(group.rows.length, "shot")}</span>
+                                </div>
+                            </div>
+
+                            <div class="machine-table-wrap">
+                                <table class="machine-table">
+                                    <colgroup>
+                                        ${columns.map(([, , , columnClass]) => `<col class="${columnClass}">`).join("")}
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            ${columns.map(([, label, className]) => `<th class="${className}">${label}</th>`).join("")}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${group.rows.map((row) => `
+                                            <tr data-machine-row="${escapeAttr(row.id)}">
+                                                ${columns.map(([key, label, className]) => `
+                                                    <td class="${className}" data-label="${escapeAttr(label)}" title="${escapeAttr(row[key])}">
+                                                        <span>${escapeHtml(row[key])}</span>
+                                                    </td>
+                                                `).join("")}
+                                            </tr>
+                                        `).join("")}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    `).join("")}
+                </div>
+            `;
         }
 
         function renderShotOverview(shots) {
@@ -2310,7 +2666,8 @@
             const layoutSignature = JSON.stringify({
                 hasFilteredShots: filteredShots.length > 0,
                 useGridFallback,
-                isMobileOverview
+                isMobileOverview,
+                viewMode: currentViewMode
             });
 
             if (overviewLayoutSignature !== layoutSignature) {
@@ -2324,6 +2681,22 @@
             }
 
             if (!filteredShots.length) {
+                return;
+            }
+
+            if (currentViewMode === "list") {
+                const listContainer = document.getElementById("shotListView");
+                if (listContainer) {
+                    listContainer.innerHTML = filteredShots.map(shot => renderShotListRow(shot)).join("");
+                }
+                return;
+            }
+
+            if (currentViewMode === "machines") {
+                const machineContainer = document.getElementById("machinesTableView");
+                if (machineContainer) {
+                    machineContainer.innerHTML = renderMachinesTable(buildMachineRows(filteredShots));
+                }
                 return;
             }
 
@@ -2349,6 +2722,7 @@
 
             syncShotCardCollection(document.getElementById("shotRailPrimary"), railShots);
             syncShotCardCollection(document.getElementById("shotGridSecondary"), gridShots, { compact: true });
+            requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
         }
 
         function getShotDetailSignature(shot) {
@@ -2574,6 +2948,7 @@
             currentShotsByName = new Map(currentShots.map((shot) => [shot.name, shot]));
             renderShotOverview(currentShots);
             updateSelectedShotCards();
+            requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
 
             if (selectedShotName) {
                 renderSelectedShotDetail(false);

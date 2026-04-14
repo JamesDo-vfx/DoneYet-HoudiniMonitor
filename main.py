@@ -530,6 +530,15 @@ def _normalize_row_for_webui(row):
     else:
         row_dict["frames_history"] = []
 
+    try:
+        row_dict = job_model.augment_render_payload(
+            row_dict,
+            render_key=str(row_dict.get("render_key") or "").strip(),
+            heartbeat_default=row_dict.get("last_heartbeat_ts", row_dict.get("updated_at")),
+        )
+    except Exception:
+        pass
+
     job_mode = _normalize_job_mode_value(row_dict)
     is_cache = job_mode == "cache"
     row_dict["job_mode"] = job_mode
