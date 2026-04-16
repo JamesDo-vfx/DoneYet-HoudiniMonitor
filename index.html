@@ -22,7 +22,20 @@
 </head>
 
 <body>
-    <div class="page-shell">
+    <section id="appAuthGate" class="login-gate" aria-live="polite">
+        <div class="login-gate__backdrop"></div>
+        <div class="login-card">
+            <div class="login-card__eyebrow">DoneYet Monitor</div>
+            <h1 class="login-card__title">DoneYet</h1>
+            <p id="loginSubtitle" class="login-card__subtitle">Sign in to access your company dashboard.</p>
+            <button id="appLoginBtn" class="login-card__button" type="button">Sign in with Google</button>
+            <div id="loginSpinner" class="login-card__spinner" hidden aria-hidden="true"></div>
+            <p id="loginStatusText" class="login-card__status">Checking your session...</p>
+            <p id="loginErrorText" class="login-card__error" hidden></p>
+        </div>
+    </section>
+
+    <div id="appShell" class="page-shell" hidden>
         <header class="topbar">
             <div class="brand-lockup">
                 <div class="brand-kicker">DoneYet Monitor</div>
@@ -32,6 +45,12 @@
             </div>
 
             <div class="topbar-actions">
+                <button id="inviteUserBtn" class="btn-tool" type="button" onclick="openInviteOverlay()" hidden>
+                    <span>Invite User</span>
+                </button>
+                <button id="authSessionBtn" class="btn-tool" type="button" onclick="handleAuthSessionAction()">
+                    <span>Cloud Login</span>
+                </button>
                 <button class="btn-tool" type="button" onclick="toggleSplitter()">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="4" y1="6" x2="20" y2="6"></line>
@@ -120,15 +139,84 @@
             </div>
         </footer>
     </div>
+
+    <div id="authOverlay" class="auth-overlay" hidden>
+        <div class="auth-card">
+            <div class="auth-card__eyebrow">Company Cloud Access</div>
+            <h2 id="authOverlayTitle">Sign in to Cloud DB</h2>
+            <p id="authOverlayMessage">Use your invited Google account to read shared DoneYet data from Firebase.</p>
+            <div class="auth-actions">
+                <button id="googleAuthBtn" class="btn-tool" type="button">Continue with Google</button>
+                <button class="btn-tool" type="button" onclick="hideAuthOverlay()">Close</button>
+            </div>
+            <p id="authStatusText" class="auth-status">Cloud login is required for company-scoped shared data.</p>
+        </div>
+    </div>
+
+    <div id="inviteOverlay" class="auth-overlay" hidden>
+        <div class="auth-card">
+            <div class="auth-card__eyebrow">Company Invitation</div>
+            <h2>Invite User</h2>
+            <form id="inviteForm" class="auth-form">
+                <label class="auth-field">
+                    <span>Google Email</span>
+                    <input id="inviteEmailInput" type="email" autocomplete="email" required>
+                </label>
+                <label class="auth-field">
+                    <span>Role</span>
+                    <select id="inviteRoleInput">
+                        <option value="viewer">viewer</option>
+                        <option value="admin">admin</option>
+                        <option value="owner">owner</option>
+                    </select>
+                </label>
+                <div class="auth-actions">
+                    <button class="btn-tool" type="submit">Send Invite</button>
+                    <button class="btn-tool" type="button" onclick="closeInviteOverlay()">Close</button>
+                </div>
+            </form>
+            <p id="inviteStatusText" class="auth-status">Owner/admin can invite users by Google email.</p>
+        </div>
+    </div>
     
     <div id="copyToast">Copied to clipboard</div>
 
     <script type="module">
-        const FIREBASE_DATABASE_URL = "https://rendermanager-c9298-default-rtdb.asia-southeast1.firebasedatabase.app/renders.json";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+        import {
+            getAuth,
+            GoogleAuthProvider,
+            onAuthStateChanged,
+            browserLocalPersistence,
+            setPersistence,
+            signInWithPopup,
+            signInWithRedirect,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+        const FIREBASE_DATABASE_URL = "https://testjdplugin-default-rtdb.asia-southeast1.firebasedatabase.app";
         const LOCAL_DB_FILE_NAME = "doneyet_render_tracker.db";
+        const FIREBASE_SESSION_STORAGE_KEY = "jdtool-firebase-session";
 
         let runtimeMode = "private";
         let firebaseUrlFromRuntime = FIREBASE_DATABASE_URL;
+        let firebasePublicConfig = {
+            apiKey: "",
+            authDomain: "",
+            databaseURL: FIREBASE_DATABASE_URL,
+            projectId: "",
+            appId: "",
+            companyId: "",
+            authEnabled: false
+        };
+        let firebaseApp = null;
+        let firebaseAuth = null;
+        let firebaseSession = null;
+        let authStateUnsubscribe = null;
+        let authResolutionToken = 0;
+        let appBootstrapped = false;
+        let authGateReady = false;
+        let pendingAuthGateError = "";
         let selectedViewSource = "local_db";
         let lastData = null;
         let lastDataSignature = "";
@@ -157,12 +245,31 @@
             firebase_mirror: { available: false, message: "Cloud DB unavailable." }
         };
 
+        const appAuthGate = document.getElementById("appAuthGate");
+        const appShell = document.getElementById("appShell");
+        const appLoginBtn = document.getElementById("appLoginBtn");
+        const loginSubtitle = document.getElementById("loginSubtitle");
+        const loginSpinner = document.getElementById("loginSpinner");
+        const loginStatusText = document.getElementById("loginStatusText");
+        const loginErrorText = document.getElementById("loginErrorText");
         const viewSourceBadge = document.getElementById("viewSourceBadge");
         const watchdogBadge = document.getElementById("watchdogBadge");
         const mirrorSyncBtn = document.getElementById("mirrorSyncBtn");
         const sourceLocalBtn = document.getElementById("sourceLocalBtn");
         const sourceFirebaseBtn = document.getElementById("sourceFirebaseBtn");
+        const inviteUserBtn = document.getElementById("inviteUserBtn");
+        const authSessionBtn = document.getElementById("authSessionBtn");
         const clearBtn = document.querySelector(".btn-clear");
+        const authOverlay = document.getElementById("authOverlay");
+        const authOverlayTitle = document.getElementById("authOverlayTitle");
+        const authOverlayMessage = document.getElementById("authOverlayMessage");
+        const googleAuthBtn = document.getElementById("googleAuthBtn");
+        const authStatusText = document.getElementById("authStatusText");
+        const inviteOverlay = document.getElementById("inviteOverlay");
+        const inviteForm = document.getElementById("inviteForm");
+        const inviteEmailInput = document.getElementById("inviteEmailInput");
+        const inviteRoleInput = document.getElementById("inviteRoleInput");
+        const inviteStatusText = document.getElementById("inviteStatusText");
         const appMetaPrimary = document.getElementById("appMetaPrimary");
         const appFooterOwner = document.getElementById("appFooterOwner");
         const appFooterYear = document.getElementById("appFooterYear");
@@ -249,7 +356,521 @@
             }
         }
 
-        function normalizeFirebaseMirrorUrl(rawUrl) {
+        function normalizeFirebaseSession(session) {
+            const raw = session && typeof session === "object" ? { ...session } : {};
+            const expiresRaw = Number(raw.expiresAt || raw.expires_at || 0) || 0;
+            return {
+                provider: String(raw.provider || "google").trim(),
+                idToken: String(raw.idToken || raw.id_token || "").trim(),
+                refreshToken: String(raw.refreshToken || raw.refresh_token || "").trim(),
+                uid: String(raw.uid || raw.localId || "").trim(),
+                email: String(raw.email || "").trim().toLowerCase(),
+                company_id: String(raw.company_id || raw.companyId || "").trim().toLowerCase(),
+                role: String(raw.role || "viewer").trim().toLowerCase() || "viewer",
+                displayName: String(raw.displayName || raw.display_name || "").trim(),
+                expiresAt: expiresRaw > 0 && expiresRaw < 1000000000000 ? expiresRaw * 1000 : expiresRaw
+            };
+        }
+
+        function saveFirebaseSession(session) {
+            const normalized = normalizeFirebaseSession(session);
+            firebaseSession = normalized && normalized.idToken ? normalized : null;
+            try {
+                if (firebaseSession) {
+                    localStorage.setItem(FIREBASE_SESSION_STORAGE_KEY, JSON.stringify(firebaseSession));
+                } else {
+                    localStorage.removeItem(FIREBASE_SESSION_STORAGE_KEY);
+                }
+            } catch (error) {
+                console.warn("Unable to persist Firebase session.", error);
+            }
+            updateAuthUi();
+        }
+
+        function loadFirebaseSession() {
+            try {
+                const raw = localStorage.getItem(FIREBASE_SESSION_STORAGE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return parsed && typeof parsed === "object" ? parsed : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function setAppShellVisible(visible) {
+            if (appShell) appShell.hidden = !visible;
+            if (appAuthGate) appAuthGate.hidden = !!visible;
+            document.body.classList.toggle("auth-gate-open", !visible);
+        }
+
+        function setLoginGateState({
+            status = "",
+            error = "",
+            loading = false,
+            allowLogin = false,
+            buttonLabel = "Sign in with Google",
+            subtitle = "Sign in to access your company dashboard."
+        } = {}) {
+            if (loginSubtitle) loginSubtitle.textContent = subtitle;
+            if (loginStatusText) loginStatusText.textContent = status;
+            if (loginErrorText) {
+                const hasError = !!String(error || "").trim();
+                loginErrorText.hidden = !hasError;
+                loginErrorText.textContent = error || "";
+            }
+            if (loginSpinner) loginSpinner.hidden = !loading;
+            if (appLoginBtn) {
+                appLoginBtn.textContent = buttonLabel;
+                appLoginBtn.disabled = loading || !allowLogin;
+            }
+        }
+
+        function showLoginGate(options = {}) {
+            setAppShellVisible(false);
+            setLoginGateState(options);
+        }
+
+        function showDashboardShell() {
+            setAppShellVisible(true);
+            setLoginGateState({
+                status: "Signed in.",
+                error: "",
+                loading: false,
+                allowLogin: true
+            });
+        }
+
+        function clearProtectedDashboardState() {
+            stopSourcePolling();
+            if (serviceStatusPollTimer) {
+                clearInterval(serviceStatusPollTimer);
+                serviceStatusPollTimer = null;
+            }
+            lastData = null;
+            lastDataSignature = "";
+            lastRuntimeStatusSignature = "";
+            lastRuntimeMetadataSignature = "";
+            currentShots = [];
+            currentShotsByName = new Map();
+            shotDeleteMap = {};
+            overviewLayoutSignature = "";
+            closeShotDetailPanel({ preserveSelection: false });
+            if (shotList) {
+                shotList.innerHTML = "";
+            }
+        }
+
+        function formatFirebaseAuthError(error) {
+            const code = String(error && error.code || "").trim().toLowerCase();
+            const message = String(error && error.message || "").trim();
+            if (code.includes("popup-blocked")) {
+                return "Popup was blocked by the browser. Please allow popups and try again.";
+            }
+            if (code.includes("popup-closed") || code.includes("cancelled-popup-request")) {
+                return "Google sign-in was canceled before it completed.";
+            }
+            if (code.includes("network-request-failed")) {
+                return "Network error while contacting Firebase. Please check your connection and try again.";
+            }
+            if (code === "not_invited" || message.toLowerCase().includes("not invited")) {
+                return "This Google account is not authorized for your company dashboard yet.";
+            }
+            if (message.toLowerCase().includes("different company")) {
+                return "This Google account belongs to a different company.";
+            }
+            return message || "Google sign-in could not be completed.";
+        }
+
+        function firebaseAuthEnabled() {
+            return !!(firebasePublicConfig && firebasePublicConfig.authEnabled && firebasePublicConfig.apiKey && firebasePublicConfig.databaseURL);
+        }
+
+        function firebaseSessionReady() {
+            return !!(firebaseSession && firebaseSession.idToken && firebaseSession.uid && firebaseSession.company_id);
+        }
+
+        function setAuthStatus(message, isError = false) {
+            if (!authStatusText) return;
+            authStatusText.textContent = message || "";
+            authStatusText.classList.toggle("is-error", !!isError);
+        }
+
+        function setInviteStatus(message, isError = false) {
+            if (!inviteStatusText) return;
+            inviteStatusText.textContent = message || "";
+            inviteStatusText.classList.toggle("is-error", !!isError);
+        }
+
+        function showAuthOverlay(title, message) {
+            if (authOverlayTitle) authOverlayTitle.textContent = title || "Sign in to Cloud DB";
+            if (authOverlayMessage) authOverlayMessage.textContent = message || "Use your invited Google account to read shared DoneYet data from Firebase.";
+            if (authOverlay) authOverlay.hidden = false;
+            if (googleAuthBtn) {
+                requestAnimationFrame(() => googleAuthBtn.focus());
+            }
+        }
+
+        function hideAuthOverlay() {
+            if (authOverlay) authOverlay.hidden = true;
+        }
+        window.hideAuthOverlay = hideAuthOverlay;
+
+        function updateAuthUi() {
+            if (!authSessionBtn) return;
+            if (!firebaseAuthEnabled()) {
+                authSessionBtn.disabled = true;
+                authSessionBtn.textContent = "Cloud Login Off";
+                authSessionBtn.title = "Firebase Auth is not configured for this dashboard.";
+                if (inviteUserBtn) inviteUserBtn.hidden = true;
+                updateActionButtons();
+                return;
+            }
+            authSessionBtn.disabled = false;
+            if (firebaseSessionReady()) {
+                const label = firebaseSession.email || firebaseSession.uid || "Signed in";
+                authSessionBtn.textContent = "Sign out";
+                authSessionBtn.title = `Signed in as ${label} | Company: ${firebaseSession.company_id || "unknown"} | Role: ${firebaseSession.role || "viewer"}`;
+            } else {
+                authSessionBtn.textContent = "Sign in";
+                authSessionBtn.title = "Sign in to access the dashboard.";
+            }
+            const canInvite = firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase());
+            if (inviteUserBtn) {
+                inviteUserBtn.hidden = !canInvite;
+                inviteUserBtn.disabled = !canInvite;
+            }
+            updateActionButtons();
+        }
+
+        async function firebaseRestJson(url, options = {}) {
+            const response = await fetch(url, options);
+            const text = await response.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch (error) {
+                data = null;
+            }
+            return { response, text, data };
+        }
+
+        async function refreshFirebaseIdToken() {
+            if (!firebaseSession || !firebaseSession.refreshToken || !firebasePublicConfig.apiKey) {
+                return false;
+            }
+            const url = `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(firebasePublicConfig.apiKey)}`;
+            const body = new URLSearchParams({
+                grant_type: "refresh_token",
+                refresh_token: firebaseSession.refreshToken
+            });
+            const { response, data } = await firebaseRestJson(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: body.toString()
+            });
+            if (!response.ok || !data) {
+                return false;
+            }
+            saveFirebaseSession({
+                ...firebaseSession,
+                idToken: data.id_token || "",
+                refreshToken: data.refresh_token || firebaseSession.refreshToken,
+                uid: data.user_id || firebaseSession.uid,
+                expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000)
+            });
+            return true;
+        }
+
+        async function getFirebaseAuthClient() {
+            if (!firebaseAuthEnabled()) {
+                throw new Error("Firebase Google Auth is not configured for this dashboard.");
+            }
+            if (firebaseAuth) {
+                return firebaseAuth;
+            }
+            firebaseApp = initializeApp({
+                apiKey: firebasePublicConfig.apiKey,
+                authDomain: firebasePublicConfig.authDomain,
+                databaseURL: firebasePublicConfig.databaseURL,
+                projectId: firebasePublicConfig.projectId,
+                appId: firebasePublicConfig.appId
+            }, `jdtool-dashboard-${firebasePublicConfig.projectId || "default"}`);
+            firebaseAuth = getAuth(firebaseApp);
+            await setPersistence(firebaseAuth, browserLocalPersistence);
+            return firebaseAuth;
+        }
+
+        async function authenticatedFirebaseFetch(url, options = {}, allowRefresh = true) {
+            if (!firebaseSessionReady()) {
+                throw new Error("Firebase login required.");
+            }
+            const separator = url.includes("?") ? "&" : "?";
+            const finalUrl = `${url}${separator}auth=${encodeURIComponent(firebaseSession.idToken)}`;
+            const response = await fetch(finalUrl, options);
+            if ((response.status === 401 || response.status === 403) && allowRefresh && await refreshFirebaseIdToken()) {
+                return authenticatedFirebaseFetch(url, options, false);
+            }
+            return response;
+        }
+
+        async function authorizedApiFetch(url, options = {}, requireCloudAdmin = false) {
+            const nextOptions = { ...(options || {}) };
+            const headers = new Headers(nextOptions.headers || {});
+            if (requireCloudAdmin) {
+                const ready = await ensureFirebaseSession(true);
+                if (!ready) {
+                    throw new Error("Firebase login required.");
+                }
+                headers.set("Authorization", `Bearer ${firebaseSession.idToken}`);
+            }
+            nextOptions.headers = headers;
+            return fetch(url, nextOptions);
+        }
+
+        async function userAuthorizedApiFetch(url, options = {}) {
+            const nextOptions = { ...(options || {}) };
+            const headers = new Headers(nextOptions.headers || {});
+            const ready = await ensureFirebaseSession(true);
+            if (!ready) {
+                throw new Error("Firebase login required.");
+            }
+            headers.set("Authorization", `Bearer ${firebaseSession.idToken}`);
+            nextOptions.headers = headers;
+            return fetch(url, nextOptions);
+        }
+
+        async function fetchPublicBootstrap() {
+            const response = await fetch("/api/public_bootstrap", { cache: "no-store" });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.message || `HTTP ${response.status}`);
+            }
+            return payload || {};
+        }
+
+        async function fetchAppBootstrap() {
+            const response = await userAuthorizedApiFetch("/api/app_bootstrap", { cache: "no-store" });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const error = new Error(payload.message || `HTTP ${response.status}`);
+                error.code = payload.code || "";
+                throw error;
+            }
+            return payload || {};
+        }
+
+        async function completeGoogleSession(idToken, refreshToken) {
+            const response = await fetch("/api/auth/google/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    idToken,
+                    refreshToken
+                })
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok) {
+                const error = new Error(payload.message || `HTTP ${response.status}`);
+                error.code = payload.code || "";
+                throw error;
+            }
+            saveFirebaseSession(payload.session || {});
+            hideAuthOverlay();
+            return payload.session || {};
+        }
+
+        async function signInFirebaseWithGoogle() {
+            const auth = await getFirebaseAuthClient();
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: "select_account" });
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (String(error && error.code || "").includes("popup")) {
+                    await signInWithRedirect(auth, provider);
+                    return;
+                }
+                throw error;
+            }
+        }
+
+        async function sendCompanyInvite(email, role) {
+            const resp = await authorizedApiFetch("/api/company/invite", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: String(email || "").trim(),
+                    role: String(role || "viewer").trim().toLowerCase()
+                })
+            }, true);
+            const payload = await resp.json().catch(() => ({}));
+            if (!resp.ok || !payload.ok) {
+                throw new Error(payload.message || `HTTP ${resp.status}`);
+            }
+            return payload;
+        }
+
+        async function logoutFirebaseSession() {
+            try {
+                if (firebaseAuth) {
+                    await signOut(firebaseAuth);
+                }
+            } catch (error) {
+                console.warn("Firebase sign-out warning:", error);
+            }
+            saveFirebaseSession(null);
+            setAuthStatus("Cloud login signed out.");
+            clearProtectedDashboardState();
+            appBootstrapped = false;
+            showLoginGate({
+                status: "Signed out.",
+                error: "",
+                loading: false,
+                allowLogin: true,
+                buttonLabel: "Sign in with Google"
+            });
+        }
+
+        async function applyAuthenticatedUser(user, resolutionId) {
+            setAuthStatus("Finalizing Google sign-in...");
+            showLoginGate({
+                status: "Checking your company access...",
+                error: "",
+                loading: true,
+                allowLogin: false,
+                buttonLabel: "Signing in..."
+            });
+            const idToken = await user.getIdToken(true);
+            const refreshToken = String((user.stsTokenManager && user.stsTokenManager.refreshToken) || user.refreshToken || "").trim();
+            await completeGoogleSession(idToken, refreshToken);
+            if (resolutionId !== authResolutionToken) {
+                return;
+            }
+            await bootstrapAuthenticatedApp();
+            showDashboardShell();
+            setAuthStatus("Cloud login ready.");
+        }
+
+        async function handleFirebaseAuthState(user) {
+            const resolutionId = ++authResolutionToken;
+            if (!user) {
+                const gateError = pendingAuthGateError;
+                pendingAuthGateError = "";
+                saveFirebaseSession(null);
+                clearProtectedDashboardState();
+                appBootstrapped = false;
+                showLoginGate({
+                    status: gateError ? "Sign-in failed." : (authGateReady ? "Sign in with Google to continue." : "Checking your session..."),
+                    error: gateError,
+                    loading: false,
+                    allowLogin: true,
+                    buttonLabel: "Sign in with Google"
+                });
+                authGateReady = true;
+                return;
+            }
+
+            try {
+                await applyAuthenticatedUser(user, resolutionId);
+                authGateReady = true;
+            } catch (error) {
+                console.error("Firebase auth state resolution failed:", error);
+                if (resolutionId !== authResolutionToken) {
+                    return;
+                }
+                pendingAuthGateError = formatFirebaseAuthError(error);
+                try {
+                    if (firebaseAuth) {
+                        await signOut(firebaseAuth);
+                    }
+                } catch (signOutError) {
+                    console.warn("Sign-out after auth failure warning:", signOutError);
+                }
+                saveFirebaseSession(null);
+                clearProtectedDashboardState();
+                appBootstrapped = false;
+                showLoginGate({
+                    status: "Sign-in failed.",
+                    error: pendingAuthGateError,
+                    loading: false,
+                    allowLogin: true,
+                    buttonLabel: "Sign in with Google"
+                });
+                setAuthStatus(pendingAuthGateError, true);
+                authGateReady = true;
+            }
+        }
+
+        async function initFirebaseAuthGate() {
+            showLoginGate({
+                status: "Loading sign-in settings...",
+                error: "",
+                loading: true,
+                allowLogin: false,
+                buttonLabel: "Sign in with Google"
+            });
+            const publicRuntime = await fetchPublicBootstrap();
+            applyRuntimePayload(publicRuntime);
+            if (!firebaseAuthEnabled()) {
+                showLoginGate({
+                    status: "Google sign-in is not configured.",
+                    error: "Firebase Authentication is missing required web config for this dashboard.",
+                    loading: false,
+                    allowLogin: false,
+                    buttonLabel: "Sign in with Google"
+                });
+                authGateReady = true;
+                return;
+            }
+            const auth = await getFirebaseAuthClient();
+            if (authStateUnsubscribe) {
+                authStateUnsubscribe();
+            }
+            authStateUnsubscribe = onAuthStateChanged(auth, (user) => {
+                handleFirebaseAuthState(user);
+            });
+        }
+
+        function openInviteOverlay() {
+            if (inviteOverlay) inviteOverlay.hidden = false;
+            setInviteStatus("Owner/admin can invite users by Google email.");
+        }
+
+        function closeInviteOverlay() {
+            if (inviteOverlay) inviteOverlay.hidden = true;
+        }
+
+        async function ensureFirebaseSession(showPrompt = false) {
+            if (!firebaseAuthEnabled()) {
+                return false;
+            }
+            if (firebaseSessionReady()) {
+                return true;
+            }
+            const stored = loadFirebaseSession();
+            if (stored) {
+                saveFirebaseSession(stored);
+                if (firebaseSessionReady()) {
+                    if (Number(firebaseSession.expiresAt || 0) <= Date.now() + 60000) {
+                        await refreshFirebaseIdToken();
+                    }
+                    return firebaseSessionReady();
+                }
+            }
+            if (showPrompt) {
+                showLoginGate({
+                    status: "Session required.",
+                    error: "",
+                    loading: false,
+                    allowLogin: true,
+                    buttonLabel: "Sign in with Google"
+                });
+            }
+            return false;
+        }
+
+        function normalizeFirebaseMirrorUrl(rawUrl, companyId = "") {
             if (!rawUrl) return "";
             const trimmed = String(rawUrl).trim().replace(/\/+$/, "");
             if (!trimmed) return "";
@@ -260,10 +881,14 @@
                 if (!host.includes("firebaseio.com") && !host.includes("firebasedatabase.app")) {
                     return "";
                 }
+                const normalizedCompanyId = String(companyId || firebasePublicConfig.companyId || (firebaseSession && firebaseSession.company_id) || "").trim().toLowerCase();
+                if (!normalizedCompanyId) {
+                    return "";
+                }
                 const cleanedPath = parsed.pathname
-                    .replace(/\/renders(?:\.json)?$/i, "")
+                    .replace(/\/companies\/[^/]+\/renders(?:\.json)?$/i, "")
                     .replace(/\.json$/i, "");
-                parsed.pathname = `${cleanedPath || ""}/renders.json`.replace(/\/{2,}/g, "/");
+                parsed.pathname = `${cleanedPath || ""}/companies/${normalizedCompanyId}/renders.json`.replace(/\/{2,}/g, "/");
                 parsed.search = "";
                 parsed.hash = "";
                 return parsed.toString();
@@ -273,7 +898,8 @@
         }
 
         function getFirebaseMirrorUrl() {
-            return normalizeFirebaseMirrorUrl(firebaseUrlFromRuntime || FIREBASE_DATABASE_URL);
+            const companyId = (firebaseSession && firebaseSession.company_id) || firebasePublicConfig.companyId || "";
+            return normalizeFirebaseMirrorUrl(firebasePublicConfig.databaseURL || firebaseUrlFromRuntime || FIREBASE_DATABASE_URL, companyId);
         }
 
         async function clearFirebaseMirrorViaPatch(firebaseUrl) {
@@ -357,23 +983,27 @@
             }
             const mirrorConfigured = !!getFirebaseMirrorUrl();
             const localAvailable = !!sourceAvailability.local_db.available;
-            const syncEnabled = mirrorConfigured && localAvailable;
+            const canManageCloud = !firebaseAuthEnabled() || (firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase()));
+            const syncEnabled = mirrorConfigured && localAvailable && canManageCloud;
             mirrorSyncBtn.style.display = "inline-flex";
             mirrorSyncBtn.disabled = !syncEnabled;
             mirrorSyncBtn.title = syncEnabled
                 ? "Sync SQLite truth to Firebase mirror now"
-                : (!mirrorConfigured
+                : (!canManageCloud
+                    ? "Only owner/admin can sync Cloud DB."
+                    : (!mirrorConfigured
                     ? "Firebase mirror is not configured."
-                    : "Local DB API is unavailable, so SQLite cannot be synced from this dashboard.");
+                    : "Local DB API is unavailable, so SQLite cannot be synced from this dashboard."));
         }
 
         function updateActionButtons() {
             const localSelected = selectedViewSource === "local_db";
             const currentAvailability = sourceAvailability[selectedViewSource] || { available: false, message: "" };
+            const canManageCloud = !firebaseAuthEnabled() || (firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase()));
             clearBtn.textContent = localSelected ? "Clear Local DB" : "Clear Cloud DB";
-            clearBtn.disabled = !currentAvailability.available;
+            clearBtn.disabled = !currentAvailability.available || (!localSelected && !canManageCloud);
             clearBtn.title = currentAvailability.available
-                ? (localSelected ? "Clear Local DB only" : "Clear Cloud DB only")
+                ? (localSelected ? "Clear Local DB only" : (canManageCloud ? "Clear Cloud DB only" : "Only owner/admin can clear Cloud DB."))
                 : (currentAvailability.message || `${getSelectedSourceLabel()} unavailable.`);
             updateManualSyncButton();
         }
@@ -423,7 +1053,7 @@
             }
 
             try {
-                const resp = await fetch("/api/sync_to_firebase", { method: "POST" });
+                const resp = await authorizedApiFetch("/api/sync_to_firebase", { method: "POST" }, true);
                 const payload = await resp.json().catch(() => ({}));
                 if (!resp.ok || !payload.ok) {
                     throw new Error(payload.message || `HTTP ${resp.status}`);
@@ -475,15 +1105,22 @@
             });
             if (metadataSignature !== lastRuntimeMetadataSignature) {
                 lastRuntimeMetadataSignature = metadataSignature;
-                if (payload.firebase_url_default) {
-                    firebaseUrlFromRuntime = payload.firebase_url_default;
+                if (payload.firebase_database_url || payload.firebase_url_default) {
+                    firebaseUrlFromRuntime = payload.firebase_database_url || payload.firebase_url_default;
                 }
-                if (payload.db_path) {
-                    const runtimeDbPath = String(payload.db_path || "").trim();
-                    const runtimeDbName = runtimeDbPath.split(/[\\/]/).pop();
+                firebasePublicConfig = {
+                    ...firebasePublicConfig,
+                    ...(payload.firebase_public_config || {}),
+                    databaseURL: payload.firebase_database_url || (payload.firebase_public_config || {}).databaseURL || firebaseUrlFromRuntime || FIREBASE_DATABASE_URL,
+                    companyId: payload.firebase_company_id || (payload.firebase_public_config || {}).companyId || firebasePublicConfig.companyId || ""
+                };
+                if (payload.db_file_name || payload.db_path) {
+                    const runtimeDbName = String(payload.db_file_name || "").trim()
+                        || String(payload.db_path || "").trim().split(/[\\/]/).pop();
                     if (runtimeDbName) localDbFileName = runtimeDbName;
                 }
                 applyRuntimeMetadata(payload);
+                updateAuthUi();
             }
 
             const servicePayload = payload.crash_detection_status || payload.watchdog_status || {};
@@ -496,9 +1133,7 @@
 
         async function refreshRuntimeMetadata() {
             try {
-                const runtimeResp = await fetch("/server_runtime.json", { cache: "no-store" });
-                if (!runtimeResp.ok) return null;
-                const runtime = await runtimeResp.json();
+                const runtime = await fetchAppBootstrap();
                 applyRuntimePayload(runtime);
                 return runtime;
             } catch (err) {
@@ -509,7 +1144,7 @@
 
         async function refreshWatchdogServiceStatus() {
             try {
-                const runtimeStatusResp = await fetch("/api/service_status", { cache: "no-store" });
+                const runtimeStatusResp = await userAuthorizedApiFetch("/api/service_status", { cache: "no-store" });
                 if (!runtimeStatusResp.ok) return;
                 const runtimeStatusText = await runtimeStatusResp.text();
                 if (runtimeStatusText && runtimeStatusText !== lastRuntimeStatusSignature) {
@@ -700,6 +1335,15 @@
 
         async function init() {
             applyDensityCompensation();
+        }
+
+        async function bootstrapAuthenticatedApp() {
+            if (appBootstrapped) {
+                await refreshRuntimeMetadata();
+                await refreshWatchdogServiceStatus();
+                await activateSelectedSource();
+                return;
+            }
 
             let mode = "private";
             const runtime = await refreshRuntimeMetadata();
@@ -713,9 +1357,11 @@
             selectedViewSource = savedSource || runtimeDefaultSource;
             updateSourceButtons();
             updateActionButtons();
+            updateAuthUi();
             startServiceStatusPolling();
             await refreshWatchdogServiceStatus();
             await activateSelectedSource();
+            appBootstrapped = true;
         }
 
         async function fetchLocalData() {
@@ -723,8 +1369,8 @@
             const fetchStartedAt = performance.now();
             try {
                 const [res, runtimeStatusResp] = await Promise.all([
-                    fetch("/api/data", { cache: "no-store" }),
-                    fetch("/api/service_status", { cache: "no-store" }).catch(() => null),
+                    userAuthorizedApiFetch("/api/data", { cache: "no-store" }),
+                    userAuthorizedApiFetch("/api/service_status", { cache: "no-store" }).catch(() => null),
                 ]);
                 if (!res.ok) {
                     throw new Error(`HTTP ${res.status}`);
@@ -781,11 +1427,18 @@
                 scheduleSourcePolling(15000);
                 return;
             }
+            if (!(await ensureFirebaseSession(true))) {
+                markSourceAvailability("firebase_mirror", false, "Cloud login required.");
+                applyViewSourceStatus();
+                renderUnavailableState("Cloud Login Required", "Sign in to read your company-scoped Cloud DB.");
+                scheduleSourcePolling(10000);
+                return;
+            }
 
             console.info(`[JDTool/UI] Attempting read source=firebase_mirror url=${firebaseUrl}`);
             const fetchStartedAt = performance.now();
             try {
-                const resp = await fetch(firebaseUrl, { cache: "no-store" });
+                const resp = await authenticatedFirebaseFetch(firebaseUrl, { cache: "no-store" });
                 if (!resp.ok) {
                     throw new Error(`HTTP ${resp.status}`);
                 }
@@ -836,6 +1489,27 @@
             await activateSelectedSource();
         };
 
+        window.handleAuthSessionAction = async function () {
+            if (!firebaseAuthEnabled()) {
+                showToast("Firebase Auth is not configured for this dashboard.");
+                return;
+            }
+            if (firebaseSessionReady()) {
+                await logoutFirebaseSession();
+                return;
+            }
+            showLoginGate({
+                status: "Sign in with Google to continue.",
+                error: "",
+                loading: false,
+                allowLogin: true,
+                buttonLabel: "Sign in with Google"
+            });
+        };
+
+        window.openInviteOverlay = openInviteOverlay;
+        window.closeInviteOverlay = closeInviteOverlay;
+
         window.clearDatabase = async () => {
             const selectedLabel = getSelectedSourceLabel();
             const availability = sourceAvailability[selectedViewSource] || { available: false, message: "" };
@@ -849,12 +1523,14 @@
 
             try {
                 if (selectedViewSource === "firebase_mirror") {
-                    const firebaseUrl = getFirebaseMirrorUrl();
-                    const result = await clearFirebaseMirrorViaPatch(firebaseUrl);
-                    console.info(`[JDTool/UI] Clear action target=firebase_mirror url=${firebaseUrl} deleted=${result.deletedCount}`);
+                    const resp = await authorizedApiFetch("/api/firebase_mirror_clear", { method: "POST" }, true);
+                    const result = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
+                    console.info(`[JDTool/UI] Clear action target=firebase_mirror deleted=${result.deletedCount || 0}`);
                 } else {
-                    const resp = await fetch("/api/clear_all", { method: "POST" });
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const resp = await authorizedApiFetch("/api/clear_all", { method: "POST" }, true);
+                    const result = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
                     console.info("[JDTool/UI] Clear action target=local_db via /api/clear_all");
                 }
 
@@ -880,30 +1556,26 @@
 
             try {
                 if (selectedViewSource === "firebase_mirror") {
-                    const firebaseUrl = getFirebaseMirrorUrl();
                     const uniqueKeys = [...new Set((shotKeys || []).filter(Boolean))];
-                    const payload = {};
-                    uniqueKeys.forEach((key) => {
-                        payload[key] = null;
-                    });
-                    const resp = await fetch(firebaseUrl, {
-                        method: "PATCH",
+                    const resp = await authorizedApiFetch("/api/firebase_mirror_delete", {
+                        method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                        body: JSON.stringify({ keys: uniqueKeys })
+                    }, true);
+                    const result = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
                     console.info(`[JDTool/UI] Delete action target=firebase_mirror keys=${uniqueKeys.length} shot_name=${shotName}`);
                 } else {
-                    const resp = await fetch("/api/delete", {
+                    const resp = await authorizedApiFetch("/api/delete", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             shot_name: shotName,
                             keys: shotKeys
                         })
-                    });
-
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    }, true);
+                    const result = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
                     console.info(`[JDTool/UI] Delete action target=local_db keys=${(shotKeys || []).length} shot_name=${shotName}`);
                 }
 
@@ -936,6 +1608,16 @@
         };
 
         init();
+        initFirebaseAuthGate().catch((error) => {
+            console.error("App auth gate bootstrap failed:", error);
+            showLoginGate({
+                status: "Unable to start sign-in.",
+                error: formatFirebaseAuthError(error),
+                loading: false,
+                allowLogin: true,
+                buttonLabel: "Sign in with Google"
+            });
+        });
         window.addEventListener("resize", () => {
             applyDensityCompensation();
             requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
@@ -953,6 +1635,54 @@
             if (serviceStatusPollTimer) {
                 clearInterval(serviceStatusPollTimer);
                 serviceStatusPollTimer = null;
+            }
+            if (authStateUnsubscribe) {
+                authStateUnsubscribe();
+                authStateUnsubscribe = null;
+            }
+        });
+        appLoginBtn?.addEventListener("click", async () => {
+            try {
+                showLoginGate({
+                    status: "Opening Google sign-in...",
+                    error: "",
+                    loading: true,
+                    allowLogin: false,
+                    buttonLabel: "Signing in..."
+                });
+                await signInFirebaseWithGoogle();
+            } catch (error) {
+                console.error("Firebase Google sign-in failed:", error);
+                showLoginGate({
+                    status: "Sign-in failed.",
+                    error: formatFirebaseAuthError(error),
+                    loading: false,
+                    allowLogin: true,
+                    buttonLabel: "Sign in with Google"
+                });
+            }
+        });
+        googleAuthBtn?.addEventListener("click", async () => {
+            try {
+                setAuthStatus("Opening Google sign-in...");
+                await signInFirebaseWithGoogle();
+            } catch (error) {
+                console.error("Firebase Google sign-in failed:", error);
+                setAuthStatus(formatFirebaseAuthError(error), true);
+            }
+        });
+        inviteForm?.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+                setInviteStatus("Sending invitation...");
+                const result = await sendCompanyInvite(inviteEmailInput?.value || "", inviteRoleInput?.value || "viewer");
+                const invite = result.invite || {};
+                setInviteStatus(`Invite ready for ${invite.email || inviteEmailInput?.value || ""}.`);
+                closeInviteOverlay();
+                showToast(result.created === false ? "Invite already pending." : "Invite created.");
+            } catch (error) {
+                console.error("Company invite failed:", error);
+                setInviteStatus(error.message || String(error), true);
             }
         });
         if (window.visualViewport) {
