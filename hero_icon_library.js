@@ -1,5 +1,6 @@
 const DEFAULT_ICON_LIBRARY = "lucide";
 const DEFAULT_HERO_ICON = "building-2";
+const LUCIDE_SPRITE_PATH = "/vendor/lucide/sprite.svg";
 
 function normalizeIconLibrary(iconLibrary) {
     return String(iconLibrary || "").trim().toLowerCase() === "lucide" ? "lucide" : DEFAULT_ICON_LIBRARY;
@@ -15,15 +16,15 @@ function normalizeIconName(iconName) {
     return normalized || DEFAULT_HERO_ICON;
 }
 
-function getLucideIconPath(iconName) {
-    return `./vendor/lucide/icons/${normalizeIconName(iconName)}.svg`;
+function getLucideSpriteHref(iconName) {
+    return `${LUCIDE_SPRITE_PATH}#${encodeURIComponent(normalizeIconName(iconName))}`;
 }
 
 export function renderDecorativeHeroIcon(iconLibrary, iconName) {
     const library = normalizeIconLibrary(iconLibrary);
     const normalizedName = normalizeIconName(iconName);
-    const iconPath = library === "lucide"
-        ? getLucideIconPath(normalizedName)
-        : getLucideIconPath(DEFAULT_HERO_ICON);
-    return `<span class="overview-hero__bg-svg" style="--hero-icon-mask: url('${iconPath}');"></span>`;
+    const iconHref = library === "lucide"
+        ? getLucideSpriteHref(normalizedName)
+        : getLucideSpriteHref(DEFAULT_HERO_ICON);
+    return `<svg class="overview-hero__bg-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="${iconHref}"></use></svg>`;
 }

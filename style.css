@@ -2481,19 +2481,21 @@ body.detail-panel-resizing {
     transform: scale(var(--hero-icon-hover-scale, 1.06));
 }
 
-.overview-hero__bg-svg {
+.overview-hero__bg-svg,
+.overview-hero__bg-icon {
     width: 100%;
     height: 100%;
     display: block;
-    background-color: var(--hero-icon-color, #FFFFFF);
-    -webkit-mask-image: var(--hero-icon-mask);
-    mask-image: var(--hero-icon-mask);
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-size: contain;
-    mask-size: contain;
+}
+
+.overview-hero__bg-svg {
+    color: var(--hero-icon-color, #FFFFFF);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.45;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    overflow: visible;
     filter: drop-shadow(0 24px 80px rgba(255, 255, 255, 0.08));
 }
 
@@ -3171,8 +3173,8 @@ body.detail-panel-resizing {
     display: none;
 }
 
-.shot-card__title[data-overflowing="true"] .shot-card__title-track,
-.sl-title[data-overflowing="true"] .shot-card__title-track {
+.shot-card:hover .shot-card__title[data-overflowing="true"] .shot-card__title-track,
+.shot-list-row:hover .sl-title[data-overflowing="true"] .shot-card__title-track {
     animation: shot-card-title-marquee var(--marquee-duration, 8s) linear infinite;
 }
 
