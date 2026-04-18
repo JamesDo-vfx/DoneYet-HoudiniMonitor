@@ -49,22 +49,30 @@
                 </button>
 
                 <div id="configMenu" class="config-menu" hidden>
-                    <button id="configMenuButton" class="btn-tool" type="button" aria-haspopup="false" aria-expanded="false">
-                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <button id="configMenuButton" class="btn-tool" type="button" aria-haspopup="false"
+                        aria-expanded="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
                             <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 9 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 9 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
                         </svg>
                         <span>User Profile</span>
                     </button>
 
                     <div id="configMenuPanel" class="config-menu__panel" hidden>
-                        <button type="button" class="config-menu__item" onclick="openReplaceConfigFlow()">Replace User Profile</button>
-                        <button type="button" class="config-menu__item" onclick="viewCurrentConfig()">View User Profile</button>
-                        <button type="button" class="config-menu__item config-menu__item--danger" onclick="forgetSavedConfig()">Forget User Profile</button>
+                        <button type="button" class="config-menu__item" onclick="openReplaceConfigFlow()">Replace User
+                            Profile</button>
+                        <button type="button" class="config-menu__item" onclick="viewCurrentConfig()">View User
+                            Profile</button>
+                        <button type="button" class="config-menu__item config-menu__item--danger"
+                            onclick="forgetSavedConfig()">Forget User Profile</button>
                         <div class="config-menu__group">
                             <label for="companyNameColorInput" class="config-menu__label">Company Name Color</label>
                             <div class="config-menu__color-row">
-                                <input id="companyNameColorInput" class="config-menu__color-input" type="color" value="#98a5ba" aria-label="Choose company name color">
+                                <input id="companyNameColorInput" class="config-menu__color-input" type="color"
+                                    value="#98a5ba" aria-label="Choose company name color">
                                 <span id="companyNameColorValue" class="config-menu__color-value">#98A5BA</span>
                             </div>
                         </div>
@@ -167,7 +175,8 @@
                 <button class="config-modal__close" type="button" onclick="closeConfigModal()">Close</button>
             </div>
             <form id="configModalForm" class="setup-form">
-                <textarea id="configModalTextarea" class="config-modal__textarea" spellcheck="false" placeholder="paste your user profile here"></textarea>
+                <textarea id="configModalTextarea" class="config-modal__textarea" spellcheck="false"
+                    placeholder="paste your user profile here"></textarea>
                 <div id="configModalError" class="setup-form__error" role="status" aria-live="polite"></div>
                 <div class="setup-form__actions">
                     <button class="btn-tool btn-tool--primary" type="submit">Save User Profile</button>
