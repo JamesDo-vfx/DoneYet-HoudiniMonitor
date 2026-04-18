@@ -198,12 +198,20 @@
             validateWebConfig,
         } from "./web_config.js";
         import { renderDecorativeHeroIcon } from "./hero_icon_library.js";
+        import {
+            buildLocalApiUrl,
+            getServerRuntimeUrl,
+            resolveRuntimeMode,
+            RUNTIME_MODE_SELF_HOST,
+            RUNTIME_MODE_STATIC,
+        } from "./runtime_mode.js";
         import { createRealtimeDatabaseRestClient, RealtimeDbRestError } from "./realtime_db_rest_client.js";
         import { mapDashboardPayload } from "./dashboard_data_mapper.js";
 
         const LOCAL_DB_FILE_NAME = "doneyet_render_tracker.db";
 
-        let runtimeMode = "private";
+        let runtimeMode = RUNTIME_MODE_STATIC;
+        let runtimeContext = null;
         let activeWebConfig = null;
         let activeDashboardRestClient = null;
         let activeDashboardRestUrl = "";
@@ -266,6 +274,14 @@
         const shotDetailPanel = document.getElementById("shotDetailPanel");
         const shotDetailPanelBody = document.getElementById("shotDetailPanelBody");
         const PERF_DEBUG = new URLSearchParams(window.location.search).has("perf");
+        const LOCAL_API_URLS = {
+            data: buildLocalApiUrl("data"),
+            serviceStatus: buildLocalApiUrl("service_status"),
+            clearAll: buildLocalApiUrl("clear_all"),
+            delete: buildLocalApiUrl("delete"),
+            syncToFirebase: buildLocalApiUrl("sync_to_firebase"),
+        };
+        const SERVER_RUNTIME_URL = getServerRuntimeUrl();
 
         function setViewSourceBadge(kind, text) {
             if (!viewSourceBadge) return;
@@ -327,6 +343,14 @@
             return normalizeViewSource(source) === "firebase_mirror" ? "Cloud DB" : "Local DB";
         }
 
+        function isSelfHostMode() {
+            return runtimeMode === RUNTIME_MODE_SELF_HOST;
+        }
+
+        function isStaticMode() {
+            return runtimeMode === RUNTIME_MODE_STATIC;
+        }
+
         function getSavedViewSource() {
             try {
                 const stored = localStorage.getItem(VIEW_SOURCE_STORAGE_KEY);
@@ -341,6 +365,82 @@
                 localStorage.setItem(VIEW_SOURCE_STORAGE_KEY, selectedViewSource);
             } catch (error) {
                 console.warn("Unable to persist selected view source.", error);
+            }
+        }
+
+        function updateModeAwareUI() {
+            const localAvailable = isSelfHostMode();
+            if (sourceLocalBtn) {
+                sourceLocalBtn.disabled = !localAvailable;
+                sourceLocalBtn.hidden = !localAvailable;
+                sourceLocalBtn.title = localAvailable
+                    ? "View live data from the local self-host server"
+                    : "Local self-host backend is unavailable in static mode.";
+            }
+
+            if (sourceFirebaseBtn) {
+                sourceFirebaseBtn.textContent = "Cloud DB";
+                sourceFirebaseBtn.disabled = !activeWebConfig;
+                sourceFirebaseBtn.title = activeWebConfig
+                    ? "View data from Cloud DB"
+                    : "Import a DoneYetWebConfig bundle first.";
+            }
+        }
+
+        function getDefaultViewSource() {
+            if (isSelfHostMode()) {
+                return "local_db";
+            }
+            return "firebase_mirror";
+        }
+
+        async function resolveAndApplyRuntimeMode() {
+            runtimeContext = await resolveRuntimeMode();
+            runtimeMode = runtimeContext.mode || RUNTIME_MODE_STATIC;
+
+            const runtimeMetadata = runtimeContext.runtimeMetadata || null;
+            if (runtimeMetadata) {
+                applyRuntimePayload(runtimeMetadata);
+            }
+
+            if (isStaticMode() && selectedViewSource === "local_db") {
+                selectedViewSource = "firebase_mirror";
+                saveSelectedViewSource();
+            }
+
+            updateModeAwareUI();
+            return runtimeContext;
+        }
+
+        async function fallbackToStaticMode(reason = "") {
+            if (isStaticMode()) {
+                return;
+            }
+
+            runtimeMode = RUNTIME_MODE_STATIC;
+            if (runtimeContext && typeof runtimeContext === "object") {
+                runtimeContext = {
+                    ...runtimeContext,
+                    mode: RUNTIME_MODE_STATIC,
+                    localBackendAvailable: false,
+                };
+            }
+
+            updateModeAwareUI();
+
+            if (serviceStatusPollTimer) {
+                clearInterval(serviceStatusPollTimer);
+                serviceStatusPollTimer = null;
+            }
+
+            if (selectedViewSource === "local_db") {
+                selectedViewSource = "firebase_mirror";
+                saveSelectedViewSource();
+            }
+
+            if (reason) {
+                console.warn(`[JDTool/UI] Falling back to static mode: ${reason}`);
+                showToast(`Local backend unavailable. Falling back to Cloud DB.`);
             }
         }
 
@@ -487,9 +587,9 @@
                 return;
             }
             const mirrorConfigured = !!getFirebaseMirrorUrl();
-            const localAvailable = !!sourceAvailability.local_db.available;
+            const localAvailable = !!sourceAvailability.local_db.available && isSelfHostMode();
             const syncEnabled = mirrorConfigured && localAvailable;
-            mirrorSyncBtn.style.display = "inline-flex";
+            mirrorSyncBtn.style.display = isSelfHostMode() ? "inline-flex" : "none";
             mirrorSyncBtn.disabled = !syncEnabled;
             mirrorSyncBtn.title = syncEnabled
                 ? "Sync SQLite truth to Firebase mirror now"
@@ -554,7 +654,7 @@
             }
 
             try {
-                const resp = await fetch("/api/sync_to_firebase", { method: "POST" });
+                const resp = await fetch(LOCAL_API_URLS.syncToFirebase, { method: "POST" });
                 const payload = await resp.json().catch(() => ({}));
                 if (!resp.ok || !payload.ok) {
                     throw new Error(payload.message || `HTTP ${resp.status}`);
@@ -750,6 +850,7 @@
             activeWebConfig = validated;
             activeDashboardRestClient = null;
             activeDashboardRestUrl = "";
+            updateModeAwareUI();
             const runtime = await refreshRuntimeMetadata();
             applyBranding(validated, runtime || {});
             syncBrandingControls();
@@ -867,8 +968,11 @@
         });
 
         async function refreshRuntimeMetadata() {
+            if (isStaticMode()) {
+                return (runtimeContext && runtimeContext.runtimeMetadata) || null;
+            }
             try {
-                const runtimeResp = await fetch("/server_runtime.json", { cache: "no-store" });
+                const runtimeResp = await fetch(SERVER_RUNTIME_URL, { cache: "no-store" });
                 if (!runtimeResp.ok) return null;
                 const runtime = await runtimeResp.json();
                 applyRuntimePayload(runtime);
@@ -880,8 +984,11 @@
         }
 
         async function refreshWatchdogServiceStatus() {
+            if (isStaticMode()) {
+                return;
+            }
             try {
-                const runtimeStatusResp = await fetch("/api/service_status", { cache: "no-store" });
+                const runtimeStatusResp = await fetch(LOCAL_API_URLS.serviceStatus, { cache: "no-store" });
                 if (!runtimeStatusResp.ok) return;
                 const runtimeStatusText = await runtimeStatusResp.text();
                 if (runtimeStatusText && runtimeStatusText !== lastRuntimeStatusSignature) {
@@ -897,6 +1004,7 @@
         }
 
         function startServiceStatusPolling() {
+            if (isStaticMode()) return;
             if (serviceStatusPollTimer) return;
             serviceStatusPollTimer = window.setInterval(() => {
                 refreshRuntimeMetadata();
@@ -1048,28 +1156,6 @@
             }
         }
 
-        async function canUseLocalDatabase() {
-            try {
-                const apiHead = await fetch("/api/data", { method: "HEAD", cache: "no-store" });
-                if (!apiHead.ok) return false;
-
-                try {
-                    const runtimeResp = await fetch("/server_runtime.json", { cache: "no-store" });
-                    if (!runtimeResp.ok) return true;
-
-                    const runtime = await runtimeResp.json();
-                    const dbPath = ((runtime && runtime.db_path) || "").toLowerCase();
-                    return dbPath.endsWith(`/${localDbFileName.toLowerCase()}`) || dbPath.endsWith(`\\${localDbFileName.toLowerCase()}`);
-                } catch (runtimeErr) {
-                    console.warn("Runtime info unavailable, fallback to /api/data check only.", runtimeErr);
-                    return true;
-                }
-            } catch (err) {
-                console.warn("Local database check failed.", err);
-                return false;
-            }
-        }
-
         async function initDashboardApp(runtimeMetadata = null) {
             applyDensityCompensation();
 
@@ -1078,30 +1164,41 @@
                 selectedShotName = history.state.shotName;
             }
 
-            let mode = "private";
-            const runtime = runtimeMetadata || await refreshRuntimeMetadata();
-            if (runtime && runtime.tracker_mode) {
-                mode = runtime.tracker_mode;
-            }
-
-            runtimeMode = mode;
-            const runtimeDefaultSource = "firebase_mirror";
+            await resolveAndApplyRuntimeMode();
+            const runtime = runtimeMetadata || (runtimeContext && runtimeContext.runtimeMetadata) || await refreshRuntimeMetadata();
+            const runtimeDefaultSource = getDefaultViewSource();
             const savedSource = getSavedViewSource();
             selectedViewSource = savedSource || runtimeDefaultSource;
+            if (isStaticMode() && selectedViewSource === "local_db") {
+                selectedViewSource = "firebase_mirror";
+            }
+            if (!activeWebConfig && selectedViewSource === "firebase_mirror") {
+                selectedViewSource = runtimeDefaultSource;
+            }
             updateSourceButtons();
+            updateModeAwareUI();
             updateActionButtons();
-            startServiceStatusPolling();
-            await refreshWatchdogServiceStatus();
+            if (isSelfHostMode()) {
+                startServiceStatusPolling();
+                await refreshWatchdogServiceStatus();
+            }
             await activateSelectedSource();
         }
 
         async function fetchLocalData() {
-            console.info("[JDTool/UI] Attempting read source=local_db via /api/data");
+            if (isStaticMode()) {
+                markSourceAvailability("local_db", false, "Local self-host backend is unavailable in static mode.");
+                applyViewSourceStatus();
+                await activateSelectedSource();
+                return;
+            }
+
+            console.info(`[JDTool/UI] Attempting read source=local_db via ${LOCAL_API_URLS.data}`);
             const fetchStartedAt = performance.now();
             try {
                 const [res, runtimeStatusResp] = await Promise.all([
-                    fetch("/api/data", { cache: "no-store" }),
-                    fetch("/api/service_status", { cache: "no-store" }).catch(() => null),
+                    fetch(LOCAL_API_URLS.data, { cache: "no-store" }),
+                    fetch(LOCAL_API_URLS.serviceStatus, { cache: "no-store" }).catch(() => null),
                 ]);
                 if (!res.ok) {
                     throw new Error(`HTTP ${res.status}`);
@@ -1142,8 +1239,12 @@
                 console.error("Local DB read error:", err);
                 markSourceAvailability("local_db", false, `Local server offline: ${err.message || err}`);
                 applyViewSourceStatus();
-                if (selectedViewSource === "local_db") {
+                await fallbackToStaticMode(err?.message || err);
+                if (selectedViewSource === "local_db" && isSelfHostMode()) {
                     renderUnavailableState("Self-Host Server Offline", "Please ensure 'Self-Host Server' mode is enabled and click 'Start Server' within the plugin to view local data.");
+                } else if (selectedViewSource === "firebase_mirror") {
+                    await fetchFirebaseData();
+                    return;
                 }
                 scheduleSourcePolling(12000);
             }
@@ -1253,11 +1354,18 @@
 
         async function activateSelectedSource() {
             stopSourcePolling();
+            updateModeAwareUI();
             updateSourceButtons();
             updateActionButtons();
             applyViewSourceStatus();
             lastDataSignature = "";
             lastRuntimeStatusSignature = "";
+
+            if (selectedViewSource === "local_db" && isStaticMode()) {
+                selectedViewSource = "firebase_mirror";
+                saveSelectedViewSource();
+                updateSourceButtons();
+            }
 
             if (selectedViewSource === "firebase_mirror") {
                 await fetchFirebaseData();
@@ -1268,7 +1376,13 @@
         }
 
         window.selectViewSource = async function (source) {
-            selectedViewSource = normalizeViewSource(source);
+            const nextSource = normalizeViewSource(source);
+            if (nextSource === "local_db" && isStaticMode()) {
+                showToast("Local self-host backend is unavailable. Viewing Cloud DB instead.");
+                selectedViewSource = "firebase_mirror";
+            } else {
+                selectedViewSource = nextSource;
+            }
             saveSelectedViewSource();
             console.info(`[JDTool/UI] Selected view source=${selectedViewSource}`);
             await activateSelectedSource();
@@ -1291,9 +1405,9 @@
                     const result = await clearFirebaseMirrorViaPatch(firebaseUrl);
                     console.info(`[JDTool/UI] Clear action target=firebase_mirror url=${firebaseUrl} deleted=${result.deletedCount}`);
                 } else {
-                    const resp = await fetch("/api/clear_all", { method: "POST" });
+                    const resp = await fetch(LOCAL_API_URLS.clearAll, { method: "POST" });
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    console.info("[JDTool/UI] Clear action target=local_db via /api/clear_all");
+                    console.info(`[JDTool/UI] Clear action target=local_db via ${LOCAL_API_URLS.clearAll}`);
                 }
 
                 lastData = {};
@@ -1332,7 +1446,7 @@
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     console.info(`[JDTool/UI] Delete action target=firebase_mirror keys=${uniqueKeys.length} shot_name=${shotName}`);
                 } else {
-                    const resp = await fetch("/api/delete", {
+                    const resp = await fetch(LOCAL_API_URLS.delete, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -1342,7 +1456,7 @@
                     });
 
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    console.info(`[JDTool/UI] Delete action target=local_db keys=${(shotKeys || []).length} shot_name=${shotName}`);
+                    console.info(`[JDTool/UI] Delete action target=local_db via ${LOCAL_API_URLS.delete} keys=${(shotKeys || []).length} shot_name=${shotName}`);
                 }
 
                 if (lastData) {

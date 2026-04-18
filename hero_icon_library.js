@@ -1,6 +1,8 @@
+import { resolveModuleAssetUrl } from "./runtime_mode.js";
+
 const DEFAULT_ICON_LIBRARY = "lucide";
 const DEFAULT_HERO_ICON = "building-2";
-const LUCIDE_SPRITE_PATH = "/vendor/lucide/sprite.svg";
+const LUCIDE_SPRITE_PATH = resolveModuleAssetUrl("./vendor/lucide/sprite.svg");
 
 function normalizeIconLibrary(iconLibrary) {
     return String(iconLibrary || "").trim().toLowerCase() === "lucide" ? "lucide" : DEFAULT_ICON_LIBRARY;
