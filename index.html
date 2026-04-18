@@ -17,56 +17,69 @@
     <title>DoneYet Monitor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <section id="appAuthGate" class="login-gate" aria-live="polite">
-        <div class="login-gate__backdrop"></div>
-        <div class="login-card">
-            <div class="login-card__eyebrow">DoneYet Monitor</div>
-            <h1 class="login-card__title">DoneYet</h1>
-            <p id="loginSubtitle" class="login-card__subtitle">Sign in to access your company dashboard.</p>
-            <button id="appLoginBtn" class="login-card__button" type="button">Sign in with Google</button>
-            <div id="loginSpinner" class="login-card__spinner" hidden aria-hidden="true"></div>
-            <p id="loginStatusText" class="login-card__status">Checking your session...</p>
-            <p id="loginErrorText" class="login-card__error" hidden></p>
-        </div>
-    </section>
-
-    <div id="appShell" class="page-shell" hidden>
+    <div class="page-shell">
         <header class="topbar">
             <div class="brand-lockup">
-                <div class="brand-kicker">DoneYet Monitor</div>
-                <h1 class="brand-title">
-                    <span class="brand-title-main">DoneYet</span><span class="brand-title-accent">Monitor</span>
-                </h1>
+                <div class="brand-lockup__row">
+                    <div class="brand-lockup__copy">
+                        <div id="brandCompanyName" class="brand-kicker">DoneYet Monitor</div>
+                        <h1 class="brand-title">
+                            <span id="brandHeaderTitle" class="brand-title-main">Company Name</span>
+                        </h1>
+                    </div>
+                </div>
             </div>
 
             <div class="topbar-actions">
-                <button id="inviteUserBtn" class="btn-tool" type="button" onclick="openInviteOverlay()" hidden>
-                    <span>Invite User</span>
-                </button>
-                <button id="authSessionBtn" class="btn-tool" type="button" onclick="handleAuthSessionAction()">
-                    <span>Cloud Login</span>
-                </button>
-                <button class="btn-tool" type="button" onclick="toggleSplitter()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button id="splitterToggleBtn" class="btn-tool" type="button" onclick="toggleSplitter()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
                         <line x1="4" y1="6" x2="20" y2="6"></line>
                         <line x1="4" y1="12" x2="20" y2="12"></line>
                         <line x1="4" y1="18" x2="20" y2="18"></line>
                     </svg>
                     <span>Splitter Tool</span>
                 </button>
+
+                <div id="configMenu" class="config-menu" hidden>
+                    <button id="configMenuButton" class="btn-tool" type="button" aria-haspopup="true" aria-expanded="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 9 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        <span>Config</span>
+                    </button>
+
+                    <div id="configMenuPanel" class="config-menu__panel" hidden>
+                        <button type="button" class="config-menu__item" onclick="openReplaceConfigFlow()">Replace Config</button>
+                        <button type="button" class="config-menu__item" onclick="viewCurrentConfig()">View Current Config</button>
+                        <button type="button" class="config-menu__item config-menu__item--danger" onclick="forgetSavedConfig()">Forget Saved Config</button>
+                        <div class="config-menu__group">
+                            <label for="companyNameColorInput" class="config-menu__label">Company Name Color</label>
+                            <div class="config-menu__color-row">
+                                <input id="companyNameColorInput" class="config-menu__color-input" type="color" value="#98a5ba" aria-label="Choose company name color">
+                                <span id="companyNameColorValue" class="config-menu__color-value">#98A5BA</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
         <div class="utility-bar">
             <div class="utility-bar__source-group">
                 <div class="source-switch" role="group" aria-label="Dashboard data source">
-                    <button id="sourceLocalBtn" class="source-switch__button is-active" type="button" onclick="selectViewSource('local_db')">Local DB</button>
-                    <button id="sourceFirebaseBtn" class="source-switch__button" type="button" onclick="selectViewSource('firebase_mirror')">Cloud DB</button>
+                    <button id="sourceLocalBtn" class="source-switch__button is-active" type="button"
+                        onclick="selectViewSource('local_db')">Local DB</button>
+                    <button id="sourceFirebaseBtn" class="source-switch__button" type="button"
+                        onclick="selectViewSource('firebase_mirror')">Cloud DB</button>
                 </div>
             </div>
 
@@ -115,7 +128,8 @@
         <div id="shotDetailBackdrop" class="shot-detail-backdrop" hidden></div>
 
         <aside id="shotDetailPanel" class="shot-detail-panel" aria-hidden="true" tabindex="-1">
-            <button class="shot-detail-panel__resize-handle shot-detail-panel__resize-handle--left" type="button" data-resize-handle="left" aria-label="Resize detail panel width"></button>
+            <button class="shot-detail-panel__resize-handle shot-detail-panel__resize-handle--left" type="button"
+                data-resize-handle="left" aria-label="Resize detail panel width"></button>
             <div id="shotDetailPanelBody" class="shot-detail-panel__body"></div>
         </aside>
 
@@ -123,7 +137,7 @@
             <div class="site-footer__inner">
                 <p class="site-footer__copyright">
                     <span class="site-footer__copy">&copy; <span id="appFooterYear">2026</span></span>
-                    <span id="appFooterBrand" class="site-footer__brand">Render Tracker</span>
+                    <span id="appFooterBrand" class="site-footer__brand">DoneYet</span>
                     <span class="site-footer__dot">&bull;</span>
                     <span>All Rights Reserved.</span>
                 </p>
@@ -132,7 +146,8 @@
 
                 <p class="site-footer__credit">
                     Developed and maintained by
-                    <a href="https://jamesdo-vfx.github.io/JamesDo-Portfolio/" target="_blank" rel="noreferrer" class="site-footer__link"><span id="appFooterOwner">JamesDo</span></a>
+                    <a href="https://jamesdo-vfx.github.io/JamesDo-Portfolio/" target="_blank" rel="noreferrer"
+                        class="site-footer__link"><span id="appFooterOwner">JamesDo</span></a>.
                 </p>
 
                 <p id="appMetaPrimary" class="site-footer__meta">DoneYet / JDTool for Houdini | Build 2026.04.07</p>
@@ -140,83 +155,50 @@
         </footer>
     </div>
 
-    <div id="authOverlay" class="auth-overlay" hidden>
-        <div class="auth-card">
-            <div class="auth-card__eyebrow">Company Cloud Access</div>
-            <h2 id="authOverlayTitle">Sign in to Cloud DB</h2>
-            <p id="authOverlayMessage">Use your invited Google account to read shared DoneYet data from Firebase.</p>
-            <div class="auth-actions">
-                <button id="googleAuthBtn" class="btn-tool" type="button">Continue with Google</button>
-                <button class="btn-tool" type="button" onclick="hideAuthOverlay()">Close</button>
-            </div>
-            <p id="authStatusText" class="auth-status">Cloud login is required for company-scoped shared data.</p>
-        </div>
-    </div>
-
-    <div id="inviteOverlay" class="auth-overlay" hidden>
-        <div class="auth-card">
-            <div class="auth-card__eyebrow">Company Invitation</div>
-            <h2>Invite User</h2>
-            <form id="inviteForm" class="auth-form">
-                <label class="auth-field">
-                    <span>Google Email</span>
-                    <input id="inviteEmailInput" type="email" autocomplete="email" required>
-                </label>
-                <label class="auth-field">
-                    <span>Role</span>
-                    <select id="inviteRoleInput">
-                        <option value="viewer">viewer</option>
-                        <option value="admin">admin</option>
-                        <option value="owner">owner</option>
-                    </select>
-                </label>
-                <div class="auth-actions">
-                    <button class="btn-tool" type="submit">Send Invite</button>
-                    <button class="btn-tool" type="button" onclick="closeInviteOverlay()">Close</button>
-                </div>
-            </form>
-            <p id="inviteStatusText" class="auth-status">Owner/admin can invite users by Google email.</p>
-        </div>
-    </div>
-    
     <div id="copyToast">Copied to clipboard</div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-        import {
-            getAuth,
-            GoogleAuthProvider,
-            onAuthStateChanged,
-            browserLocalPersistence,
-            setPersistence,
-            signInWithPopup,
-            signInWithRedirect,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    <div id="configModalBackdrop" class="config-modal-backdrop" hidden>
+        <div class="config-modal" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
+            <div class="config-modal__header">
+                <div>
+                    <div class="config-modal__eyebrow">Paste URL Config</div>
+                    <h2 id="configModalTitle">Paste your url config here</h2>
+                </div>
+                <button class="config-modal__close" type="button" onclick="closeConfigModal()">Close</button>
+            </div>
+            <form id="configModalForm" class="setup-form">
+                <textarea id="configModalTextarea" class="config-modal__textarea" spellcheck="false" placeholder="paste your url config here"></textarea>
+                <div id="configModalError" class="setup-form__error" role="status" aria-live="polite"></div>
+                <div class="setup-form__actions">
+                    <button class="btn-tool btn-tool--primary" type="submit">Save Config</button>
+                    <button class="btn-tool" type="button" onclick="closeConfigModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        const FIREBASE_DATABASE_URL = "https://testjdplugin-default-rtdb.asia-southeast1.firebasedatabase.app";
+    <script type="module">
+        import {
+            STORAGE_KEY as WEB_CONFIG_STORAGE_KEY,
+            applyBranding,
+            forgetStoredWebConfig,
+            parseAndValidateWebConfig,
+            readStoredWebConfig,
+            saveStoredWebConfig,
+            serializeWebConfig,
+            validateWebConfig,
+        } from "./web_config.js";
+        import { renderDecorativeHeroIcon } from "./hero_icon_library.js";
+        import { createRealtimeDatabaseRestClient, RealtimeDbRestError } from "./realtime_db_rest_client.js";
+        import { mapDashboardPayload } from "./dashboard_data_mapper.js";
+
         const LOCAL_DB_FILE_NAME = "doneyet_render_tracker.db";
-        const FIREBASE_SESSION_STORAGE_KEY = "jdtool-firebase-session";
 
         let runtimeMode = "private";
-        let firebaseUrlFromRuntime = FIREBASE_DATABASE_URL;
-        let firebasePublicConfig = {
-            apiKey: "",
-            authDomain: "",
-            databaseURL: FIREBASE_DATABASE_URL,
-            projectId: "",
-            appId: "",
-            companyId: "",
-            authEnabled: false
-        };
-        let firebaseApp = null;
-        let firebaseAuth = null;
-        let firebaseSession = null;
-        let authStateUnsubscribe = null;
-        let authResolutionToken = 0;
-        let appBootstrapped = false;
-        let authGateReady = false;
-        let pendingAuthGateError = "";
+        let activeWebConfig = null;
+        let activeDashboardRestClient = null;
+        let activeDashboardRestUrl = "";
+        let dashboardBootstrapped = false;
         let selectedViewSource = "local_db";
         let lastData = null;
         let lastDataSignature = "";
@@ -235,41 +217,38 @@
         let activeBreakpointClass = "";
         let overviewLayoutSignature = "";
         let localDbFileName = LOCAL_DB_FILE_NAME;
-        let currentViewMode = localStorage.getItem("jdtool-dashboard-view-mode") || "rail";
+        let currentViewMode = "rail";
+        let detailBackdropTimer = null;
+        try {
+            currentViewMode = localStorage.getItem("jdtool-dashboard-view-mode") || "rail";
+        } catch (error) {
+            currentViewMode = "rail";
+        }
         if (!["rail", "list", "machines"].includes(currentViewMode)) {
             currentViewMode = "rail";
         }
         const VIEW_SOURCE_STORAGE_KEY = "jdtool-dashboard-view-source";
         const sourceAvailability = {
-            local_db: { available: false, message: "Local DB unavailable." },
+            local_db: { available: false, message: "Local server is offline." },
             firebase_mirror: { available: false, message: "Cloud DB unavailable." }
         };
 
-        const appAuthGate = document.getElementById("appAuthGate");
-        const appShell = document.getElementById("appShell");
-        const appLoginBtn = document.getElementById("appLoginBtn");
-        const loginSubtitle = document.getElementById("loginSubtitle");
-        const loginSpinner = document.getElementById("loginSpinner");
-        const loginStatusText = document.getElementById("loginStatusText");
-        const loginErrorText = document.getElementById("loginErrorText");
         const viewSourceBadge = document.getElementById("viewSourceBadge");
         const watchdogBadge = document.getElementById("watchdogBadge");
         const mirrorSyncBtn = document.getElementById("mirrorSyncBtn");
         const sourceLocalBtn = document.getElementById("sourceLocalBtn");
         const sourceFirebaseBtn = document.getElementById("sourceFirebaseBtn");
-        const inviteUserBtn = document.getElementById("inviteUserBtn");
-        const authSessionBtn = document.getElementById("authSessionBtn");
         const clearBtn = document.querySelector(".btn-clear");
-        const authOverlay = document.getElementById("authOverlay");
-        const authOverlayTitle = document.getElementById("authOverlayTitle");
-        const authOverlayMessage = document.getElementById("authOverlayMessage");
-        const googleAuthBtn = document.getElementById("googleAuthBtn");
-        const authStatusText = document.getElementById("authStatusText");
-        const inviteOverlay = document.getElementById("inviteOverlay");
-        const inviteForm = document.getElementById("inviteForm");
-        const inviteEmailInput = document.getElementById("inviteEmailInput");
-        const inviteRoleInput = document.getElementById("inviteRoleInput");
-        const inviteStatusText = document.getElementById("inviteStatusText");
+        const splitterToggleBtn = document.getElementById("splitterToggleBtn");
+        const configMenu = document.getElementById("configMenu");
+        const configMenuButton = document.getElementById("configMenuButton");
+        const configMenuPanel = document.getElementById("configMenuPanel");
+        const configModalBackdrop = document.getElementById("configModalBackdrop");
+        const configModalForm = document.getElementById("configModalForm");
+        const configModalTextarea = document.getElementById("configModalTextarea");
+        const configModalError = document.getElementById("configModalError");
+        const companyNameColorInput = document.getElementById("companyNameColorInput");
+        const companyNameColorValue = document.getElementById("companyNameColorValue");
         const appMetaPrimary = document.getElementById("appMetaPrimary");
         const appFooterOwner = document.getElementById("appFooterOwner");
         const appFooterYear = document.getElementById("appFooterYear");
@@ -356,521 +335,7 @@
             }
         }
 
-        function normalizeFirebaseSession(session) {
-            const raw = session && typeof session === "object" ? { ...session } : {};
-            const expiresRaw = Number(raw.expiresAt || raw.expires_at || 0) || 0;
-            return {
-                provider: String(raw.provider || "google").trim(),
-                idToken: String(raw.idToken || raw.id_token || "").trim(),
-                refreshToken: String(raw.refreshToken || raw.refresh_token || "").trim(),
-                uid: String(raw.uid || raw.localId || "").trim(),
-                email: String(raw.email || "").trim().toLowerCase(),
-                company_id: String(raw.company_id || raw.companyId || "").trim().toLowerCase(),
-                role: String(raw.role || "viewer").trim().toLowerCase() || "viewer",
-                displayName: String(raw.displayName || raw.display_name || "").trim(),
-                expiresAt: expiresRaw > 0 && expiresRaw < 1000000000000 ? expiresRaw * 1000 : expiresRaw
-            };
-        }
-
-        function saveFirebaseSession(session) {
-            const normalized = normalizeFirebaseSession(session);
-            firebaseSession = normalized && normalized.idToken ? normalized : null;
-            try {
-                if (firebaseSession) {
-                    localStorage.setItem(FIREBASE_SESSION_STORAGE_KEY, JSON.stringify(firebaseSession));
-                } else {
-                    localStorage.removeItem(FIREBASE_SESSION_STORAGE_KEY);
-                }
-            } catch (error) {
-                console.warn("Unable to persist Firebase session.", error);
-            }
-            updateAuthUi();
-        }
-
-        function loadFirebaseSession() {
-            try {
-                const raw = localStorage.getItem(FIREBASE_SESSION_STORAGE_KEY);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                return parsed && typeof parsed === "object" ? parsed : null;
-            } catch (error) {
-                return null;
-            }
-        }
-
-        function setAppShellVisible(visible) {
-            if (appShell) appShell.hidden = !visible;
-            if (appAuthGate) appAuthGate.hidden = !!visible;
-            document.body.classList.toggle("auth-gate-open", !visible);
-        }
-
-        function setLoginGateState({
-            status = "",
-            error = "",
-            loading = false,
-            allowLogin = false,
-            buttonLabel = "Sign in with Google",
-            subtitle = "Sign in to access your company dashboard."
-        } = {}) {
-            if (loginSubtitle) loginSubtitle.textContent = subtitle;
-            if (loginStatusText) loginStatusText.textContent = status;
-            if (loginErrorText) {
-                const hasError = !!String(error || "").trim();
-                loginErrorText.hidden = !hasError;
-                loginErrorText.textContent = error || "";
-            }
-            if (loginSpinner) loginSpinner.hidden = !loading;
-            if (appLoginBtn) {
-                appLoginBtn.textContent = buttonLabel;
-                appLoginBtn.disabled = loading || !allowLogin;
-            }
-        }
-
-        function showLoginGate(options = {}) {
-            setAppShellVisible(false);
-            setLoginGateState(options);
-        }
-
-        function showDashboardShell() {
-            setAppShellVisible(true);
-            setLoginGateState({
-                status: "Signed in.",
-                error: "",
-                loading: false,
-                allowLogin: true
-            });
-        }
-
-        function clearProtectedDashboardState() {
-            stopSourcePolling();
-            if (serviceStatusPollTimer) {
-                clearInterval(serviceStatusPollTimer);
-                serviceStatusPollTimer = null;
-            }
-            lastData = null;
-            lastDataSignature = "";
-            lastRuntimeStatusSignature = "";
-            lastRuntimeMetadataSignature = "";
-            currentShots = [];
-            currentShotsByName = new Map();
-            shotDeleteMap = {};
-            overviewLayoutSignature = "";
-            closeShotDetailPanel({ preserveSelection: false });
-            if (shotList) {
-                shotList.innerHTML = "";
-            }
-        }
-
-        function formatFirebaseAuthError(error) {
-            const code = String(error && error.code || "").trim().toLowerCase();
-            const message = String(error && error.message || "").trim();
-            if (code.includes("popup-blocked")) {
-                return "Popup was blocked by the browser. Please allow popups and try again.";
-            }
-            if (code.includes("popup-closed") || code.includes("cancelled-popup-request")) {
-                return "Google sign-in was canceled before it completed.";
-            }
-            if (code.includes("network-request-failed")) {
-                return "Network error while contacting Firebase. Please check your connection and try again.";
-            }
-            if (code === "not_invited" || message.toLowerCase().includes("not invited")) {
-                return "This Google account is not authorized for your company dashboard yet.";
-            }
-            if (message.toLowerCase().includes("different company")) {
-                return "This Google account belongs to a different company.";
-            }
-            return message || "Google sign-in could not be completed.";
-        }
-
-        function firebaseAuthEnabled() {
-            return !!(firebasePublicConfig && firebasePublicConfig.authEnabled && firebasePublicConfig.apiKey && firebasePublicConfig.databaseURL);
-        }
-
-        function firebaseSessionReady() {
-            return !!(firebaseSession && firebaseSession.idToken && firebaseSession.uid && firebaseSession.company_id);
-        }
-
-        function setAuthStatus(message, isError = false) {
-            if (!authStatusText) return;
-            authStatusText.textContent = message || "";
-            authStatusText.classList.toggle("is-error", !!isError);
-        }
-
-        function setInviteStatus(message, isError = false) {
-            if (!inviteStatusText) return;
-            inviteStatusText.textContent = message || "";
-            inviteStatusText.classList.toggle("is-error", !!isError);
-        }
-
-        function showAuthOverlay(title, message) {
-            if (authOverlayTitle) authOverlayTitle.textContent = title || "Sign in to Cloud DB";
-            if (authOverlayMessage) authOverlayMessage.textContent = message || "Use your invited Google account to read shared DoneYet data from Firebase.";
-            if (authOverlay) authOverlay.hidden = false;
-            if (googleAuthBtn) {
-                requestAnimationFrame(() => googleAuthBtn.focus());
-            }
-        }
-
-        function hideAuthOverlay() {
-            if (authOverlay) authOverlay.hidden = true;
-        }
-        window.hideAuthOverlay = hideAuthOverlay;
-
-        function updateAuthUi() {
-            if (!authSessionBtn) return;
-            if (!firebaseAuthEnabled()) {
-                authSessionBtn.disabled = true;
-                authSessionBtn.textContent = "Cloud Login Off";
-                authSessionBtn.title = "Firebase Auth is not configured for this dashboard.";
-                if (inviteUserBtn) inviteUserBtn.hidden = true;
-                updateActionButtons();
-                return;
-            }
-            authSessionBtn.disabled = false;
-            if (firebaseSessionReady()) {
-                const label = firebaseSession.email || firebaseSession.uid || "Signed in";
-                authSessionBtn.textContent = "Sign out";
-                authSessionBtn.title = `Signed in as ${label} | Company: ${firebaseSession.company_id || "unknown"} | Role: ${firebaseSession.role || "viewer"}`;
-            } else {
-                authSessionBtn.textContent = "Sign in";
-                authSessionBtn.title = "Sign in to access the dashboard.";
-            }
-            const canInvite = firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase());
-            if (inviteUserBtn) {
-                inviteUserBtn.hidden = !canInvite;
-                inviteUserBtn.disabled = !canInvite;
-            }
-            updateActionButtons();
-        }
-
-        async function firebaseRestJson(url, options = {}) {
-            const response = await fetch(url, options);
-            const text = await response.text();
-            let data = null;
-            try {
-                data = text ? JSON.parse(text) : null;
-            } catch (error) {
-                data = null;
-            }
-            return { response, text, data };
-        }
-
-        async function refreshFirebaseIdToken() {
-            if (!firebaseSession || !firebaseSession.refreshToken || !firebasePublicConfig.apiKey) {
-                return false;
-            }
-            const url = `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(firebasePublicConfig.apiKey)}`;
-            const body = new URLSearchParams({
-                grant_type: "refresh_token",
-                refresh_token: firebaseSession.refreshToken
-            });
-            const { response, data } = await firebaseRestJson(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: body.toString()
-            });
-            if (!response.ok || !data) {
-                return false;
-            }
-            saveFirebaseSession({
-                ...firebaseSession,
-                idToken: data.id_token || "",
-                refreshToken: data.refresh_token || firebaseSession.refreshToken,
-                uid: data.user_id || firebaseSession.uid,
-                expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000)
-            });
-            return true;
-        }
-
-        async function getFirebaseAuthClient() {
-            if (!firebaseAuthEnabled()) {
-                throw new Error("Firebase Google Auth is not configured for this dashboard.");
-            }
-            if (firebaseAuth) {
-                return firebaseAuth;
-            }
-            firebaseApp = initializeApp({
-                apiKey: firebasePublicConfig.apiKey,
-                authDomain: firebasePublicConfig.authDomain,
-                databaseURL: firebasePublicConfig.databaseURL,
-                projectId: firebasePublicConfig.projectId,
-                appId: firebasePublicConfig.appId
-            }, `jdtool-dashboard-${firebasePublicConfig.projectId || "default"}`);
-            firebaseAuth = getAuth(firebaseApp);
-            await setPersistence(firebaseAuth, browserLocalPersistence);
-            return firebaseAuth;
-        }
-
-        async function authenticatedFirebaseFetch(url, options = {}, allowRefresh = true) {
-            if (!firebaseSessionReady()) {
-                throw new Error("Firebase login required.");
-            }
-            const separator = url.includes("?") ? "&" : "?";
-            const finalUrl = `${url}${separator}auth=${encodeURIComponent(firebaseSession.idToken)}`;
-            const response = await fetch(finalUrl, options);
-            if ((response.status === 401 || response.status === 403) && allowRefresh && await refreshFirebaseIdToken()) {
-                return authenticatedFirebaseFetch(url, options, false);
-            }
-            return response;
-        }
-
-        async function authorizedApiFetch(url, options = {}, requireCloudAdmin = false) {
-            const nextOptions = { ...(options || {}) };
-            const headers = new Headers(nextOptions.headers || {});
-            if (requireCloudAdmin) {
-                const ready = await ensureFirebaseSession(true);
-                if (!ready) {
-                    throw new Error("Firebase login required.");
-                }
-                headers.set("Authorization", `Bearer ${firebaseSession.idToken}`);
-            }
-            nextOptions.headers = headers;
-            return fetch(url, nextOptions);
-        }
-
-        async function userAuthorizedApiFetch(url, options = {}) {
-            const nextOptions = { ...(options || {}) };
-            const headers = new Headers(nextOptions.headers || {});
-            const ready = await ensureFirebaseSession(true);
-            if (!ready) {
-                throw new Error("Firebase login required.");
-            }
-            headers.set("Authorization", `Bearer ${firebaseSession.idToken}`);
-            nextOptions.headers = headers;
-            return fetch(url, nextOptions);
-        }
-
-        async function fetchPublicBootstrap() {
-            const response = await fetch("/api/public_bootstrap", { cache: "no-store" });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(payload.message || `HTTP ${response.status}`);
-            }
-            return payload || {};
-        }
-
-        async function fetchAppBootstrap() {
-            const response = await userAuthorizedApiFetch("/api/app_bootstrap", { cache: "no-store" });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                const error = new Error(payload.message || `HTTP ${response.status}`);
-                error.code = payload.code || "";
-                throw error;
-            }
-            return payload || {};
-        }
-
-        async function completeGoogleSession(idToken, refreshToken) {
-            const response = await fetch("/api/auth/google/complete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    idToken,
-                    refreshToken
-                })
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok || !payload.ok) {
-                const error = new Error(payload.message || `HTTP ${response.status}`);
-                error.code = payload.code || "";
-                throw error;
-            }
-            saveFirebaseSession(payload.session || {});
-            hideAuthOverlay();
-            return payload.session || {};
-        }
-
-        async function signInFirebaseWithGoogle() {
-            const auth = await getFirebaseAuthClient();
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: "select_account" });
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                if (String(error && error.code || "").includes("popup")) {
-                    await signInWithRedirect(auth, provider);
-                    return;
-                }
-                throw error;
-            }
-        }
-
-        async function sendCompanyInvite(email, role) {
-            const resp = await authorizedApiFetch("/api/company/invite", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    email: String(email || "").trim(),
-                    role: String(role || "viewer").trim().toLowerCase()
-                })
-            }, true);
-            const payload = await resp.json().catch(() => ({}));
-            if (!resp.ok || !payload.ok) {
-                throw new Error(payload.message || `HTTP ${resp.status}`);
-            }
-            return payload;
-        }
-
-        async function logoutFirebaseSession() {
-            try {
-                if (firebaseAuth) {
-                    await signOut(firebaseAuth);
-                }
-            } catch (error) {
-                console.warn("Firebase sign-out warning:", error);
-            }
-            saveFirebaseSession(null);
-            setAuthStatus("Cloud login signed out.");
-            clearProtectedDashboardState();
-            appBootstrapped = false;
-            showLoginGate({
-                status: "Signed out.",
-                error: "",
-                loading: false,
-                allowLogin: true,
-                buttonLabel: "Sign in with Google"
-            });
-        }
-
-        async function applyAuthenticatedUser(user, resolutionId) {
-            setAuthStatus("Finalizing Google sign-in...");
-            showLoginGate({
-                status: "Checking your company access...",
-                error: "",
-                loading: true,
-                allowLogin: false,
-                buttonLabel: "Signing in..."
-            });
-            const idToken = await user.getIdToken(true);
-            const refreshToken = String((user.stsTokenManager && user.stsTokenManager.refreshToken) || user.refreshToken || "").trim();
-            await completeGoogleSession(idToken, refreshToken);
-            if (resolutionId !== authResolutionToken) {
-                return;
-            }
-            await bootstrapAuthenticatedApp();
-            showDashboardShell();
-            setAuthStatus("Cloud login ready.");
-        }
-
-        async function handleFirebaseAuthState(user) {
-            const resolutionId = ++authResolutionToken;
-            if (!user) {
-                const gateError = pendingAuthGateError;
-                pendingAuthGateError = "";
-                saveFirebaseSession(null);
-                clearProtectedDashboardState();
-                appBootstrapped = false;
-                showLoginGate({
-                    status: gateError ? "Sign-in failed." : (authGateReady ? "Sign in with Google to continue." : "Checking your session..."),
-                    error: gateError,
-                    loading: false,
-                    allowLogin: true,
-                    buttonLabel: "Sign in with Google"
-                });
-                authGateReady = true;
-                return;
-            }
-
-            try {
-                await applyAuthenticatedUser(user, resolutionId);
-                authGateReady = true;
-            } catch (error) {
-                console.error("Firebase auth state resolution failed:", error);
-                if (resolutionId !== authResolutionToken) {
-                    return;
-                }
-                pendingAuthGateError = formatFirebaseAuthError(error);
-                try {
-                    if (firebaseAuth) {
-                        await signOut(firebaseAuth);
-                    }
-                } catch (signOutError) {
-                    console.warn("Sign-out after auth failure warning:", signOutError);
-                }
-                saveFirebaseSession(null);
-                clearProtectedDashboardState();
-                appBootstrapped = false;
-                showLoginGate({
-                    status: "Sign-in failed.",
-                    error: pendingAuthGateError,
-                    loading: false,
-                    allowLogin: true,
-                    buttonLabel: "Sign in with Google"
-                });
-                setAuthStatus(pendingAuthGateError, true);
-                authGateReady = true;
-            }
-        }
-
-        async function initFirebaseAuthGate() {
-            showLoginGate({
-                status: "Loading sign-in settings...",
-                error: "",
-                loading: true,
-                allowLogin: false,
-                buttonLabel: "Sign in with Google"
-            });
-            const publicRuntime = await fetchPublicBootstrap();
-            applyRuntimePayload(publicRuntime);
-            if (!firebaseAuthEnabled()) {
-                showLoginGate({
-                    status: "Google sign-in is not configured.",
-                    error: "Firebase Authentication is missing required web config for this dashboard.",
-                    loading: false,
-                    allowLogin: false,
-                    buttonLabel: "Sign in with Google"
-                });
-                authGateReady = true;
-                return;
-            }
-            const auth = await getFirebaseAuthClient();
-            if (authStateUnsubscribe) {
-                authStateUnsubscribe();
-            }
-            authStateUnsubscribe = onAuthStateChanged(auth, (user) => {
-                handleFirebaseAuthState(user);
-            });
-        }
-
-        function openInviteOverlay() {
-            if (inviteOverlay) inviteOverlay.hidden = false;
-            setInviteStatus("Owner/admin can invite users by Google email.");
-        }
-
-        function closeInviteOverlay() {
-            if (inviteOverlay) inviteOverlay.hidden = true;
-        }
-
-        async function ensureFirebaseSession(showPrompt = false) {
-            if (!firebaseAuthEnabled()) {
-                return false;
-            }
-            if (firebaseSessionReady()) {
-                return true;
-            }
-            const stored = loadFirebaseSession();
-            if (stored) {
-                saveFirebaseSession(stored);
-                if (firebaseSessionReady()) {
-                    if (Number(firebaseSession.expiresAt || 0) <= Date.now() + 60000) {
-                        await refreshFirebaseIdToken();
-                    }
-                    return firebaseSessionReady();
-                }
-            }
-            if (showPrompt) {
-                showLoginGate({
-                    status: "Session required.",
-                    error: "",
-                    loading: false,
-                    allowLogin: true,
-                    buttonLabel: "Sign in with Google"
-                });
-            }
-            return false;
-        }
-
-        function normalizeFirebaseMirrorUrl(rawUrl, companyId = "") {
+        function normalizeFirebaseMirrorUrl(rawUrl) {
             if (!rawUrl) return "";
             const trimmed = String(rawUrl).trim().replace(/\/+$/, "");
             if (!trimmed) return "";
@@ -881,14 +346,10 @@
                 if (!host.includes("firebaseio.com") && !host.includes("firebasedatabase.app")) {
                     return "";
                 }
-                const normalizedCompanyId = String(companyId || firebasePublicConfig.companyId || (firebaseSession && firebaseSession.company_id) || "").trim().toLowerCase();
-                if (!normalizedCompanyId) {
-                    return "";
-                }
                 const cleanedPath = parsed.pathname
-                    .replace(/\/companies\/[^/]+\/renders(?:\.json)?$/i, "")
+                    .replace(/\/renders(?:\.json)?$/i, "")
                     .replace(/\.json$/i, "");
-                parsed.pathname = `${cleanedPath || ""}/companies/${normalizedCompanyId}/renders.json`.replace(/\/{2,}/g, "/");
+                parsed.pathname = `${cleanedPath || ""}/renders.json`.replace(/\/{2,}/g, "/");
                 parsed.search = "";
                 parsed.hash = "";
                 return parsed.toString();
@@ -897,9 +358,44 @@
             }
         }
 
+        function getDashboardRestClient() {
+            const databaseUrl = activeWebConfig?.connection?.databaseURL || "";
+            if (!databaseUrl) {
+                activeDashboardRestClient = null;
+                activeDashboardRestUrl = "";
+                return null;
+            }
+            if (activeDashboardRestClient && activeDashboardRestUrl === databaseUrl) {
+                return activeDashboardRestClient;
+            }
+            activeDashboardRestClient = createRealtimeDatabaseRestClient({
+                databaseURL: databaseUrl,
+                timeoutMs: 12000
+            });
+            activeDashboardRestUrl = databaseUrl;
+            return activeDashboardRestClient;
+        }
+
         function getFirebaseMirrorUrl() {
-            const companyId = (firebaseSession && firebaseSession.company_id) || firebasePublicConfig.companyId || "";
-            return normalizeFirebaseMirrorUrl(firebasePublicConfig.databaseURL || firebaseUrlFromRuntime || FIREBASE_DATABASE_URL, companyId);
+            try {
+                const client = getDashboardRestClient();
+                return client ? client.buildRequestUrl() : "";
+            } catch (error) {
+                return "";
+            }
+        }
+
+        function renderLoadingState(title, message) {
+            currentShots = [];
+            currentShotsByName = new Map();
+            overviewLayoutSignature = "";
+            closeShotDetailPanel({ preserveSelection: false });
+            shotList.innerHTML = `
+                <section class="empty-state">
+                    <h2>${escapeHtml(title)}</h2>
+                    <div class="empty-state__message">${escapeHtml(message)}</div>
+                </section>
+            `;
         }
 
         async function clearFirebaseMirrorViaPatch(firebaseUrl) {
@@ -946,7 +442,7 @@
             shotList.innerHTML = `
                 <section class="empty-state">
                     <h2>${escapeHtml(title)}</h2>
-                    <p>${escapeHtml(message)}</p>
+                    <div class="empty-state__message">${message}</div>
                 </section>
             `;
         }
@@ -983,27 +479,23 @@
             }
             const mirrorConfigured = !!getFirebaseMirrorUrl();
             const localAvailable = !!sourceAvailability.local_db.available;
-            const canManageCloud = !firebaseAuthEnabled() || (firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase()));
-            const syncEnabled = mirrorConfigured && localAvailable && canManageCloud;
+            const syncEnabled = mirrorConfigured && localAvailable;
             mirrorSyncBtn.style.display = "inline-flex";
             mirrorSyncBtn.disabled = !syncEnabled;
             mirrorSyncBtn.title = syncEnabled
                 ? "Sync SQLite truth to Firebase mirror now"
-                : (!canManageCloud
-                    ? "Only owner/admin can sync Cloud DB."
-                    : (!mirrorConfigured
+                : (!mirrorConfigured
                     ? "Firebase mirror is not configured."
-                    : "Local DB API is unavailable, so SQLite cannot be synced from this dashboard."));
+                    : "Local DB API is unavailable, so SQLite cannot be synced from this dashboard.");
         }
 
         function updateActionButtons() {
             const localSelected = selectedViewSource === "local_db";
             const currentAvailability = sourceAvailability[selectedViewSource] || { available: false, message: "" };
-            const canManageCloud = !firebaseAuthEnabled() || (firebaseSessionReady() && ["owner", "admin"].includes(String(firebaseSession.role || "").toLowerCase()));
             clearBtn.textContent = localSelected ? "Clear Local DB" : "Clear Cloud DB";
-            clearBtn.disabled = !currentAvailability.available || (!localSelected && !canManageCloud);
+            clearBtn.disabled = !currentAvailability.available;
             clearBtn.title = currentAvailability.available
-                ? (localSelected ? "Clear Local DB only" : (canManageCloud ? "Clear Cloud DB only" : "Only owner/admin can clear Cloud DB."))
+                ? (localSelected ? "Clear Local DB only" : "Clear Cloud DB only")
                 : (currentAvailability.message || `${getSelectedSourceLabel()} unavailable.`);
             updateManualSyncButton();
         }
@@ -1024,7 +516,7 @@
             if (availability.available) {
                 setViewSourceBadge("sync-local", "VIEW: LOCAL DB");
             } else {
-                setViewSourceBadge("sync-degraded", "VIEW: LOCAL DB UNAVAILABLE");
+                setViewSourceBadge("sync-degraded", "VIEW: LOCAL SERVER OFFLINE");
             }
         }
 
@@ -1035,7 +527,7 @@
                 return false;
             }
             if (!sourceAvailability.local_db.available) {
-                showToast("Local DB is unavailable, so SQLite cannot be synced from this dashboard.");
+                showToast("Local server is offline, so SQLite cannot be synced from this dashboard.");
                 return false;
             }
             return window.confirm(
@@ -1053,7 +545,7 @@
             }
 
             try {
-                const resp = await authorizedApiFetch("/api/sync_to_firebase", { method: "POST" }, true);
+                const resp = await fetch("/api/sync_to_firebase", { method: "POST" });
                 const payload = await resp.json().catch(() => ({}));
                 if (!resp.ok || !payload.ok) {
                     throw new Error(payload.message || `HTTP ${resp.status}`);
@@ -1091,6 +583,10 @@
             if (appFooterYear) {
                 appFooterYear.textContent = String(new Date().getFullYear());
             }
+
+            if (activeWebConfig) {
+                applyBranding(activeWebConfig, runtime);
+            }
         }
 
         function applyRuntimePayload(runtime) {
@@ -1100,27 +596,16 @@
                 build_id: payload.build_id || "",
                 owner: payload.owner || "",
                 db_path: payload.db_path || "",
-                firebase_url_default: payload.firebase_url_default || "",
                 view_source_default: payload.view_source_default || "",
             });
             if (metadataSignature !== lastRuntimeMetadataSignature) {
                 lastRuntimeMetadataSignature = metadataSignature;
-                if (payload.firebase_database_url || payload.firebase_url_default) {
-                    firebaseUrlFromRuntime = payload.firebase_database_url || payload.firebase_url_default;
-                }
-                firebasePublicConfig = {
-                    ...firebasePublicConfig,
-                    ...(payload.firebase_public_config || {}),
-                    databaseURL: payload.firebase_database_url || (payload.firebase_public_config || {}).databaseURL || firebaseUrlFromRuntime || FIREBASE_DATABASE_URL,
-                    companyId: payload.firebase_company_id || (payload.firebase_public_config || {}).companyId || firebasePublicConfig.companyId || ""
-                };
-                if (payload.db_file_name || payload.db_path) {
-                    const runtimeDbName = String(payload.db_file_name || "").trim()
-                        || String(payload.db_path || "").trim().split(/[\\/]/).pop();
+                if (payload.db_path) {
+                    const runtimeDbPath = String(payload.db_path || "").trim();
+                    const runtimeDbName = runtimeDbPath.split(/[\\/]/).pop();
                     if (runtimeDbName) localDbFileName = runtimeDbName;
                 }
                 applyRuntimeMetadata(payload);
-                updateAuthUi();
             }
 
             const servicePayload = payload.crash_detection_status || payload.watchdog_status || {};
@@ -1131,9 +616,252 @@
             }
         }
 
+        function setAppMode(mode) {
+            document.body.classList.toggle("app-mode-setup", mode === "setup");
+            document.body.classList.toggle("app-mode-dashboard", mode === "dashboard");
+
+            if (splitterToggleBtn) {
+                splitterToggleBtn.hidden = mode !== "dashboard";
+            }
+
+            if (configMenu) {
+                configMenu.hidden = mode !== "dashboard";
+            }
+
+            if (mode !== "dashboard") {
+                closeConfigMenu();
+                stopSourcePolling();
+                if (serviceStatusPollTimer) {
+                    clearInterval(serviceStatusPollTimer);
+                    serviceStatusPollTimer = null;
+                }
+            }
+        }
+
+        function closeConfigMenu() {
+            if (!configMenuPanel || !configMenuButton) return;
+            configMenuPanel.hidden = true;
+            configMenuButton.setAttribute("aria-expanded", "false");
+        }
+
+        function toggleConfigMenu() {
+            if (!configMenuPanel || !configMenuButton || configMenu.hidden) return;
+            syncBrandingControls();
+            const nextHidden = !configMenuPanel.hidden;
+            configMenuPanel.hidden = nextHidden;
+            configMenuButton.setAttribute("aria-expanded", nextHidden ? "false" : "true");
+        }
+
+        function getActiveCompanyNameColor() {
+            const rawColor = activeWebConfig?.branding?.companyNameColor || "#98a5ba";
+            return String(rawColor).trim() || "#98a5ba";
+        }
+
+        function syncBrandingControls() {
+            if (!companyNameColorInput || !companyNameColorValue) return;
+            const color = getActiveCompanyNameColor().toLowerCase();
+            companyNameColorInput.value = color;
+            companyNameColorValue.textContent = color.toUpperCase();
+        }
+
+        async function saveCompanyNameColor(color) {
+            if (!activeWebConfig) {
+                showToast("No saved web config is active.");
+                syncBrandingControls();
+                return;
+            }
+            const nextConfig = {
+                ...activeWebConfig,
+                branding: {
+                    ...(activeWebConfig.branding || {}),
+                    companyNameColor: color,
+                },
+            };
+            try {
+                const validated = saveStoredWebConfig(nextConfig);
+                activeWebConfig = validated;
+                const runtime = await refreshRuntimeMetadata();
+                applyBranding(validated, runtime || {});
+                syncBrandingControls();
+                showToast("Company name color updated.");
+            } catch (error) {
+                syncBrandingControls();
+                showToast(error?.message || "Failed to update company name color.");
+            }
+        }
+
+        function renderSetupScreen(options = {}) {
+            const errorMessage = String(options.errorMessage || "").trim();
+            const rawConfig = String(options.rawConfig || "").trim();
+            setAppMode("setup");
+            closeShotDetailPanel({ preserveSelection: false, fromPopState: true });
+            shotList.innerHTML = `
+                <section class="setup-shell">
+                    <div class="setup-card">
+                        <div class="setup-card__eyebrow">Web Dashboard Setup</div>
+                        <h2>Import your DoneYetWebConfig</h2>
+                        <p class="setup-card__intro">Paste one validated config bundle to unlock the dashboard shell on this browser.</p>
+                        <form id="webConfigForm" class="setup-form">
+                            <label for="webConfigTextarea" class="field-label">Paste Web Config JSON</label>
+                            <textarea id="webConfigTextarea" class="setup-form__textarea" spellcheck="false" placeholder='{"type":"DoneYetWebConfig","version":1,"connection":{"databaseURL":"https://your-project.firebaseio.com"},"branding":{"companyName":"Your Studio"}}'>${escapeHtml(rawConfig)}</textarea>
+                            <div id="webConfigError" class="setup-form__error" role="status" aria-live="polite">${escapeHtml(errorMessage)}</div>
+                            <div class="setup-form__actions">
+                                <button class="btn-tool btn-tool--primary" type="submit">Save Config</button>
+                            </div>
+                        </form>
+                        <div class="setup-card__meta">Storage key: <code>${WEB_CONFIG_STORAGE_KEY}</code></div>
+                    </div>
+                </section>
+            `;
+
+            const form = document.getElementById("webConfigForm");
+            const textarea = document.getElementById("webConfigTextarea");
+            const errorArea = document.getElementById("webConfigError");
+
+            form?.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const nextRawConfig = textarea ? textarea.value : "";
+                if (errorArea) errorArea.textContent = "";
+
+                try {
+                    const parsedConfig = parseAndValidateWebConfig(nextRawConfig);
+                    saveStoredWebConfig(parsedConfig);
+                    await applySavedConfigAndStart(parsedConfig);
+                    showToast("Web config saved to this browser.");
+                } catch (error) {
+                    if (errorArea) {
+                        errorArea.textContent = error?.message || "Failed to save web config.";
+                    }
+                }
+            });
+        }
+
+        async function applySavedConfigAndStart(config) {
+            const validated = validateWebConfig(config);
+            activeWebConfig = validated;
+            activeDashboardRestClient = null;
+            activeDashboardRestUrl = "";
+            const runtime = await refreshRuntimeMetadata();
+            applyBranding(validated, runtime || {});
+            syncBrandingControls();
+            setAppMode("dashboard");
+            if (!dashboardBootstrapped) {
+                dashboardBootstrapped = true;
+                await initDashboardApp(runtime);
+                return;
+            }
+            startServiceStatusPolling();
+            await refreshWatchdogServiceStatus();
+            await activateSelectedSource();
+        }
+
+        async function bootstrapWebConfig() {
+            try {
+                const savedConfig = readStoredWebConfig();
+                if (!savedConfig) {
+                    renderSetupScreen();
+                    return;
+                }
+                await applySavedConfigAndStart(savedConfig);
+            } catch (error) {
+                renderSetupScreen({
+                    errorMessage: error?.message || "Could not read saved config from browser storage.",
+                });
+            }
+        }
+
+        function openConfigModal(rawConfig = "") {
+            if (!configModalBackdrop || !configModalTextarea) {
+                return;
+            }
+            if (configModalError) {
+                configModalError.textContent = "";
+            }
+            configModalTextarea.value = String(rawConfig || "");
+            configModalBackdrop.hidden = false;
+            requestAnimationFrame(() => {
+                configModalTextarea.focus();
+                const end = configModalTextarea.value.length;
+                configModalTextarea.setSelectionRange(end, end);
+            });
+        }
+
+        window.openReplaceConfigFlow = function () {
+            const rawConfig = activeWebConfig ? serializeWebConfig(activeWebConfig) : "";
+            openConfigModal(rawConfig);
+        };
+
+        window.forgetSavedConfig = function () {
+            try {
+                forgetStoredWebConfig();
+                activeWebConfig = null;
+                activeDashboardRestClient = null;
+                activeDashboardRestUrl = "";
+                lastData = null;
+                lastDataSignature = "";
+                syncBrandingControls();
+                renderSetupScreen();
+                showToast("Saved web config removed from this browser.");
+            } catch (error) {
+                showToast(error?.message || "Could not forget saved config.");
+            }
+        };
+
+        window.viewCurrentConfig = function () {
+            if (!activeWebConfig) {
+                showToast("No saved web config is active.");
+                return;
+            }
+            openConfigModal(serializeWebConfig(activeWebConfig));
+        };
+
+        window.closeConfigModal = function () {
+            if (configModalBackdrop) {
+                configModalBackdrop.hidden = true;
+            }
+            if (configModalError) {
+                configModalError.textContent = "";
+            }
+        };
+
+        configModalForm?.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const nextRawConfig = configModalTextarea ? configModalTextarea.value : "";
+            if (configModalError) {
+                configModalError.textContent = "";
+            }
+
+            try {
+                const parsedConfig = parseAndValidateWebConfig(nextRawConfig);
+                saveStoredWebConfig(parsedConfig);
+                closeConfigModal();
+                await applySavedConfigAndStart(parsedConfig);
+                showToast("Web config saved for this browser.");
+            } catch (error) {
+                if (configModalError) {
+                    configModalError.textContent = error?.message || "Failed to save web config.";
+                }
+                showToast(error?.message || "Failed to save web config.");
+            }
+        });
+
+        companyNameColorInput?.addEventListener("input", (event) => {
+            const color = String(event.target?.value || "#98a5ba").toLowerCase();
+            if (companyNameColorValue) {
+                companyNameColorValue.textContent = color.toUpperCase();
+            }
+        });
+
+        companyNameColorInput?.addEventListener("change", async (event) => {
+            const color = String(event.target?.value || "#98a5ba").toLowerCase();
+            await saveCompanyNameColor(color);
+        });
+
         async function refreshRuntimeMetadata() {
             try {
-                const runtime = await fetchAppBootstrap();
+                const runtimeResp = await fetch("/server_runtime.json", { cache: "no-store" });
+                if (!runtimeResp.ok) return null;
+                const runtime = await runtimeResp.json();
                 applyRuntimePayload(runtime);
                 return runtime;
             } catch (err) {
@@ -1144,7 +872,7 @@
 
         async function refreshWatchdogServiceStatus() {
             try {
-                const runtimeStatusResp = await userAuthorizedApiFetch("/api/service_status", { cache: "no-store" });
+                const runtimeStatusResp = await fetch("/api/service_status", { cache: "no-store" });
                 if (!runtimeStatusResp.ok) return;
                 const runtimeStatusText = await runtimeStatusResp.text();
                 if (runtimeStatusText && runtimeStatusText !== lastRuntimeStatusSignature) {
@@ -1333,35 +1061,29 @@
             }
         }
 
-        async function init() {
+        async function initDashboardApp(runtimeMetadata = null) {
             applyDensityCompensation();
-        }
 
-        async function bootstrapAuthenticatedApp() {
-            if (appBootstrapped) {
-                await refreshRuntimeMetadata();
-                await refreshWatchdogServiceStatus();
-                await activateSelectedSource();
-                return;
+            // Restore state from history if present (e.g. after refresh)
+            if (history.state?.panel === "shotDetail") {
+                selectedShotName = history.state.shotName;
             }
 
             let mode = "private";
-            const runtime = await refreshRuntimeMetadata();
+            const runtime = runtimeMetadata || await refreshRuntimeMetadata();
             if (runtime && runtime.tracker_mode) {
                 mode = runtime.tracker_mode;
             }
 
             runtimeMode = mode;
-            const runtimeDefaultSource = normalizeViewSource(runtime && runtime.view_source_default ? runtime.view_source_default : "local_db");
+            const runtimeDefaultSource = "firebase_mirror";
             const savedSource = getSavedViewSource();
             selectedViewSource = savedSource || runtimeDefaultSource;
             updateSourceButtons();
             updateActionButtons();
-            updateAuthUi();
             startServiceStatusPolling();
             await refreshWatchdogServiceStatus();
             await activateSelectedSource();
-            appBootstrapped = true;
         }
 
         async function fetchLocalData() {
@@ -1369,8 +1091,8 @@
             const fetchStartedAt = performance.now();
             try {
                 const [res, runtimeStatusResp] = await Promise.all([
-                    userAuthorizedApiFetch("/api/data", { cache: "no-store" }),
-                    userAuthorizedApiFetch("/api/service_status", { cache: "no-store" }).catch(() => null),
+                    fetch("/api/data", { cache: "no-store" }),
+                    fetch("/api/service_status", { cache: "no-store" }).catch(() => null),
                 ]);
                 if (!res.ok) {
                     throw new Error(`HTTP ${res.status}`);
@@ -1409,59 +1131,113 @@
                 scheduleSourcePolling(2500);
             } catch (err) {
                 console.error("Local DB read error:", err);
-                markSourceAvailability("local_db", false, `Local DB unavailable: ${err.message || err}`);
+                markSourceAvailability("local_db", false, `Local server offline: ${err.message || err}`);
                 applyViewSourceStatus();
                 if (selectedViewSource === "local_db") {
-                renderUnavailableState("Local DB Unavailable", "The local SQLite-backed API could not be reached. The dashboard will not fall back to Cloud DB automatically.");
+                    renderUnavailableState("Self-Host Server Offline", "Please ensure 'Self-Host Server' mode is enabled and click 'Start Server' within the plugin to view local data.");
                 }
                 scheduleSourcePolling(12000);
             }
         }
 
+        function describeDashboardFetchError(error) {
+            if (error instanceof RealtimeDbRestError) {
+                if (error.code === "MALFORMED_DATABASE_URL") {
+                    return {
+                        title: "Cloud DB Configuration Error",
+                        message: error.message
+                    };
+                }
+                if (error.code === "REST_FETCH_FAILED") {
+                    return {
+                        title: "Cloud DB Sync Error",
+                        message: `REST fetch failure. ${error.message}`
+                    };
+                }
+                if (error.code === "INVALID_JSON_RESPONSE") {
+                    return {
+                        title: "Cloud DB Response Error",
+                        message: `Invalid JSON response. ${error.message}`
+                    };
+                }
+                if (error.code === "MISSING_EXPECTED_DATA") {
+                    return {
+                        title: "Cloud DB Data Error",
+                        message: `Missing expected data. ${error.message}`
+                    };
+                }
+                if (error.code === "NETWORK_TIMEOUT") {
+                    return {
+                        title: "Cloud DB Timeout",
+                        message: error.message
+                    };
+                }
+                if (error.code === "NETWORK_FAILURE") {
+                    return {
+                        title: "Cloud DB Connection Error",
+                        message: error.message
+                    };
+                }
+            }
+
+            return {
+                title: "Cloud DB Sync Error",
+                message: error?.message || String(error || "Unknown Cloud DB error.")
+            };
+        }
+
         async function fetchFirebaseData() {
-            const firebaseUrl = getFirebaseMirrorUrl();
-            if (!firebaseUrl) {
-                markSourceAvailability("firebase_mirror", false, "Cloud DB is not configured.");
+            let dashboardClient = null;
+            try {
+                dashboardClient = getDashboardRestClient();
+            } catch (error) {
+                const details = describeDashboardFetchError(error);
+                markSourceAvailability("firebase_mirror", false, details.message);
                 applyViewSourceStatus();
-                renderUnavailableState("Cloud DB Unavailable", "Cloud DB is not configured for this tracker. SQLite remains the source of truth and the dashboard will not fall back to Local DB automatically.");
+                renderUnavailableState(details.title, escapeHtml(details.message));
                 scheduleSourcePolling(15000);
                 return;
             }
-            if (!(await ensureFirebaseSession(true))) {
-                markSourceAvailability("firebase_mirror", false, "Cloud login required.");
+
+            const firebaseUrl = dashboardClient ? dashboardClient.buildRequestUrl() : "";
+            if (!firebaseUrl || !dashboardClient) {
+                markSourceAvailability("firebase_mirror", false, "Cloud DB is not configured.");
                 applyViewSourceStatus();
-                renderUnavailableState("Cloud Login Required", "Sign in to read your company-scoped Cloud DB.");
-                scheduleSourcePolling(10000);
+                renderUnavailableState("Cloud DB Connection Required", "Cloud DB is not configured. Please import a valid DoneYetWebConfig with connection.databaseURL.");
+                scheduleSourcePolling(15000);
                 return;
+            }
+
+            if (lastData === null) {
+                renderLoadingState("Loading Dashboard", "Connecting to Cloud DB...");
             }
 
             console.info(`[JDTool/UI] Attempting read source=firebase_mirror url=${firebaseUrl}`);
             const fetchStartedAt = performance.now();
             try {
-                const resp = await authenticatedFirebaseFetch(firebaseUrl, { cache: "no-store" });
-                if (!resp.ok) {
-                    throw new Error(`HTTP ${resp.status}`);
-                }
-                const dataText = await resp.text();
-                markSourceAvailability("firebase_mirror", true, "Cloud DB available.");
+                const payload = await dashboardClient.fetchJson();
+                const mapped = mapDashboardPayload(payload);
+                const dataText = JSON.stringify(mapped.records);
+                markSourceAvailability("firebase_mirror", true, mapped.isEmpty ? "Cloud DB connected. No render records yet." : "Cloud DB available.");
                 if (dataText === lastDataSignature) {
                     applyViewSourceStatus();
                     scheduleSourcePolling(10000);
                     return;
                 }
                 lastDataSignature = dataText;
-                lastData = dataText ? (JSON.parse(dataText) || {}) : {};
+                lastData = mapped.records;
                 renderUI(lastData);
                 applyViewSourceStatus();
                 if (PERF_DEBUG) {
                     console.info(`[JDTool/UI/PERF] firebase_fetch_render_ms=${(performance.now() - fetchStartedAt).toFixed(2)}`);
                 }
-                scheduleSourcePolling(4500);
+                scheduleSourcePolling(mapped.isEmpty ? 7000 : 4500);
             } catch (err) {
+                const details = describeDashboardFetchError(err);
                 console.error("Cloud DB read error:", err);
-                markSourceAvailability("firebase_mirror", false, `Cloud DB unavailable: ${err.message || err}`);
+                markSourceAvailability("firebase_mirror", false, details.message);
                 applyViewSourceStatus();
-                renderUnavailableState("Cloud DB Unavailable", "The dashboard could not read Cloud DB. The dashboard will not fall back to Local DB automatically.");
+                renderUnavailableState(details.title, escapeHtml(details.message));
                 scheduleSourcePolling(15000);
             }
         }
@@ -1489,27 +1265,6 @@
             await activateSelectedSource();
         };
 
-        window.handleAuthSessionAction = async function () {
-            if (!firebaseAuthEnabled()) {
-                showToast("Firebase Auth is not configured for this dashboard.");
-                return;
-            }
-            if (firebaseSessionReady()) {
-                await logoutFirebaseSession();
-                return;
-            }
-            showLoginGate({
-                status: "Sign in with Google to continue.",
-                error: "",
-                loading: false,
-                allowLogin: true,
-                buttonLabel: "Sign in with Google"
-            });
-        };
-
-        window.openInviteOverlay = openInviteOverlay;
-        window.closeInviteOverlay = closeInviteOverlay;
-
         window.clearDatabase = async () => {
             const selectedLabel = getSelectedSourceLabel();
             const availability = sourceAvailability[selectedViewSource] || { available: false, message: "" };
@@ -1523,14 +1278,12 @@
 
             try {
                 if (selectedViewSource === "firebase_mirror") {
-                    const resp = await authorizedApiFetch("/api/firebase_mirror_clear", { method: "POST" }, true);
-                    const result = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
-                    console.info(`[JDTool/UI] Clear action target=firebase_mirror deleted=${result.deletedCount || 0}`);
+                    const firebaseUrl = getFirebaseMirrorUrl();
+                    const result = await clearFirebaseMirrorViaPatch(firebaseUrl);
+                    console.info(`[JDTool/UI] Clear action target=firebase_mirror url=${firebaseUrl} deleted=${result.deletedCount}`);
                 } else {
-                    const resp = await authorizedApiFetch("/api/clear_all", { method: "POST" }, true);
-                    const result = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
+                    const resp = await fetch("/api/clear_all", { method: "POST" });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     console.info("[JDTool/UI] Clear action target=local_db via /api/clear_all");
                 }
 
@@ -1556,26 +1309,30 @@
 
             try {
                 if (selectedViewSource === "firebase_mirror") {
+                    const firebaseUrl = getFirebaseMirrorUrl();
                     const uniqueKeys = [...new Set((shotKeys || []).filter(Boolean))];
-                    const resp = await authorizedApiFetch("/api/firebase_mirror_delete", {
-                        method: "POST",
+                    const payload = {};
+                    uniqueKeys.forEach((key) => {
+                        payload[key] = null;
+                    });
+                    const resp = await fetch(firebaseUrl, {
+                        method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ keys: uniqueKeys })
-                    }, true);
-                    const result = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
+                        body: JSON.stringify(payload)
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     console.info(`[JDTool/UI] Delete action target=firebase_mirror keys=${uniqueKeys.length} shot_name=${shotName}`);
                 } else {
-                    const resp = await authorizedApiFetch("/api/delete", {
+                    const resp = await fetch("/api/delete", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             shot_name: shotName,
                             keys: shotKeys
                         })
-                    }, true);
-                    const result = await resp.json().catch(() => ({}));
-                    if (!resp.ok || !result.ok) throw new Error(result.message || `HTTP ${resp.status}`);
+                    });
+
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                     console.info(`[JDTool/UI] Delete action target=local_db keys=${(shotKeys || []).length} shot_name=${shotName}`);
                 }
 
@@ -1607,17 +1364,7 @@
             if (ok) return;
         };
 
-        init();
-        initFirebaseAuthGate().catch((error) => {
-            console.error("App auth gate bootstrap failed:", error);
-            showLoginGate({
-                status: "Unable to start sign-in.",
-                error: formatFirebaseAuthError(error),
-                loading: false,
-                allowLogin: true,
-                buttonLabel: "Sign in with Google"
-            });
-        });
+        bootstrapWebConfig();
         window.addEventListener("resize", () => {
             applyDensityCompensation();
             requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
@@ -1630,59 +1377,33 @@
             applyDensityCompensation();
             requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
         });
+        window.addEventListener("popstate", (event) => {
+            if (event.state?.panel === "shotDetail") {
+                window.openShotDetailPanel(event.state.shotName, { fromPopState: true });
+            } else {
+                closeShotDetailPanel({ preserveSelection: false, fromPopState: true });
+            }
+        });
         window.addEventListener("beforeunload", () => {
             stopSourcePolling();
             if (serviceStatusPollTimer) {
                 clearInterval(serviceStatusPollTimer);
                 serviceStatusPollTimer = null;
             }
-            if (authStateUnsubscribe) {
-                authStateUnsubscribe();
-                authStateUnsubscribe = null;
+        });
+        configMenuButton?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            toggleConfigMenu();
+        });
+        configMenuPanel?.addEventListener("click", (event) => event.stopPropagation());
+        configModalBackdrop?.addEventListener("click", (event) => {
+            if (event.target === configModalBackdrop) {
+                window.closeConfigModal();
             }
         });
-        appLoginBtn?.addEventListener("click", async () => {
-            try {
-                showLoginGate({
-                    status: "Opening Google sign-in...",
-                    error: "",
-                    loading: true,
-                    allowLogin: false,
-                    buttonLabel: "Signing in..."
-                });
-                await signInFirebaseWithGoogle();
-            } catch (error) {
-                console.error("Firebase Google sign-in failed:", error);
-                showLoginGate({
-                    status: "Sign-in failed.",
-                    error: formatFirebaseAuthError(error),
-                    loading: false,
-                    allowLogin: true,
-                    buttonLabel: "Sign in with Google"
-                });
-            }
-        });
-        googleAuthBtn?.addEventListener("click", async () => {
-            try {
-                setAuthStatus("Opening Google sign-in...");
-                await signInFirebaseWithGoogle();
-            } catch (error) {
-                console.error("Firebase Google sign-in failed:", error);
-                setAuthStatus(formatFirebaseAuthError(error), true);
-            }
-        });
-        inviteForm?.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            try {
-                setInviteStatus("Sending invitation...");
-                const result = await sendCompanyInvite(inviteEmailInput?.value || "", inviteRoleInput?.value || "viewer");
-                const invite = result.invite || {};
-                setInviteStatus(`Invite ready for ${invite.email || inviteEmailInput?.value || ""}.`);
-                closeInviteOverlay();
-                showToast(result.created === false ? "Invite already pending." : "Invite created.");
-            } catch (error) {
-                console.error("Company invite failed:", error);
-                setInviteStatus(error.message || String(error), true);
+        document.addEventListener("click", (event) => {
+            if (configMenu && !configMenu.hidden && !configMenu.contains(event.target)) {
+                closeConfigMenu();
             }
         });
         if (window.visualViewport) {
@@ -1701,7 +1422,6 @@
             { id: "cache", label: "Cache" },
             { id: "render", label: "Render" }
         ];
-        let detailBackdropTimer = null;
         let detailPanelResizeState = null;
         const DETAIL_PANEL_STORAGE_KEY = "jdtool-shot-detail-panel-size";
 
@@ -1756,7 +1476,11 @@
         window.setViewMode = (mode) => {
             if (!["rail", "list", "machines"].includes(mode)) return;
             currentViewMode = mode;
-            localStorage.setItem("jdtool-dashboard-view-mode", mode);
+            try {
+                localStorage.setItem("jdtool-dashboard-view-mode", mode);
+            } catch (error) {
+                console.warn("Unable to persist dashboard view mode.", error);
+            }
             if (lastData) renderUI(lastData);
         };
 
@@ -1771,8 +1495,16 @@
             track.scrollBy({ left: delta, behavior: "smooth" });
         };
 
-        window.openShotDetailPanel = (shotName) => {
+        window.openShotDetailPanel = (shotName, options = {}) => {
             if (!shotName || !currentShotsByName.has(shotName)) return;
+
+            const { fromPopState = false } = options;
+            if (!fromPopState) {
+                const state = { panel: "shotDetail", shotName };
+                if (history.state?.panel !== "shotDetail" || history.state?.shotName !== shotName) {
+                    history.pushState(state, "");
+                }
+            }
 
             if (selectedShotName !== shotName) {
                 expandedWorkerKeys = new Set();
@@ -1789,8 +1521,8 @@
             if (shotName) window.openShotDetailPanel(shotName);
         };
 
-        window.closeShotDetailPanel = () => {
-            closeShotDetailPanel();
+        window.closeShotDetailPanel = (options = {}) => {
+            closeShotDetailPanel(options);
         };
 
         function isCompactDetailLayout() {
@@ -2676,6 +2408,9 @@
 
             shotArray.sort((a, b) => {
                 if (a.priority !== b.priority) return a.priority - b.priority;
+                const aTime = a.crashDetectionLastHeartbeatAt || 0;
+                const bTime = b.crashDetectionLastHeartbeatAt || 0;
+                if (bTime !== aTime) return bTime - aTime;
                 if (b.liveWorkers !== a.liveWorkers) return b.liveWorkers - a.liveWorkers;
                 if (b.workerCount !== a.workerCount) return b.workerCount - a.workerCount;
                 return String(a.name).localeCompare(String(b.name));
@@ -2914,6 +2649,21 @@
         }
 
         function renderShotCard(shot, options = {}) {
+            if (shot.isMoreCard) {
+                return `
+                    <article class="shot-card is-more-card" data-shot-name="${escapeAttr(shot.name)}" data-shot-signature="${escapeAttr(getShotCardSignature(shot, !!options.compact))}" style="--shot-accent:var(--accent); --shot-accent-glow:rgba(81, 255, 132, 0.23);">
+                        <button
+                            class="shot-card__surface"
+                            type="button"
+                            onclick="setViewMode('list')">
+                            <div class="more-content">
+                                <div class="more-content__count">${shot.count}</div>
+                                <div class="more-content__text">more ${pluralize(shot.count, "shot")} remain visible without turning the overview into one long list.</div>
+                            </div>
+                        </button>
+                    </article>
+                `;
+            }
             const { compact = false } = options;
             const isSelected = shot.name === selectedShotName;
             const showMetrics = !document.body.classList.contains("bp-mobile");
@@ -3006,6 +2756,9 @@
         }
 
         function getShotCardSignature(shot, compact = false) {
+            if (shot.isMoreCard) {
+                return JSON.stringify({ isMoreCard: true, count: shot.count, compact });
+            }
             return JSON.stringify({
                 compact,
                 selected: shot.name === selectedShotName,
@@ -3073,9 +2826,14 @@
             const viewModeLabel = isMobileOverview
                 ? (gridMode ? "Vertical stack + compact list" : "Vertical stack")
                 : (gridMode ? "Priority rail + compact grid" : "Sliding rail");
+            const heroIconMarkup = renderDecorativeHeroIcon(
+                activeWebConfig?.branding?.iconLibrary,
+                activeWebConfig?.branding?.heroBackgroundIcon
+            );
 
             return `
                 <section class="overview-hero">
+                    <div class="overview-hero__bg" aria-hidden="true">${heroIconMarkup}</div>
                     <div class="overview-hero__copy">
                         <div class="overview-kicker">Shot Overview</div>
                         <h2>Browse active shots in card view. Click any shot to inspect details.</h2>
@@ -3168,7 +2926,7 @@
                 `;
             }
 
-            
+
             if (currentViewMode === "list") {
                 return `
                     <section class="overview-stage is-list-mode">
@@ -3207,11 +2965,6 @@
                         <div id="overviewToolbarMount"></div>
                         <div id="overviewPrimaryHead" class="overview-panel__head"></div>
                         <div id="shotRailPrimary" class="shot-rail"></div>
-                    </section>
-
-                    <section id="overviewGridPanel" class="overview-panel overview-panel--grid" ${useGridFallback ? "" : "hidden"}>
-                        <div id="overviewGridHead" class="overview-panel__head"></div>
-                        <div id="shotGridSecondary" class="shot-card-grid"></div>
                     </section>
                 </section>
             `;
@@ -3292,7 +3045,13 @@
             return `
                 <article class="shot-list-row ${isSelected ? 'is-selected' : ''} status-${shot.statusKey}" onclick="openShotDetailPanelByCard(this)" data-shot-name="${escapeAttr(shot.name)}" data-shot-card="true" style="--shot-accent:${shot.accent};">
                     <div class="sl-cell sl-name">
-                        <div class="sl-title">${escapeHtml(shot.name)}</div>
+                        <div class="sl-title" data-marquee-title data-overflowing="false" title="${escapeAttr(shot.name)}" aria-label="${escapeAttr(shot.name)}">
+                            <span class="shot-card__title-track">
+                                <span class="shot-card__title-text" data-title-primary>${escapeHtml(shot.name)}</span>
+                                <span class="shot-card__title-gap" aria-hidden="true"></span>
+                                <span class="shot-card__title-text shot-card__title-text--clone" aria-hidden="true">${escapeHtml(shot.name)}</span>
+                            </span>
+                        </div>
                         <div class="sl-type">${escapeHtml(shot.modeLabel)}</div>
                     </div>
                     <div class="sl-cell sl-status">
@@ -3417,6 +3176,7 @@
                 const listContainer = document.getElementById("shotListView");
                 if (listContainer) {
                     listContainer.innerHTML = filteredShots.map(shot => renderShotListRow(shot)).join("");
+                    refreshShotCardTitleMarquees(listContainer);
                 }
                 return;
             }
@@ -3429,28 +3189,27 @@
                 return;
             }
 
-            const railShots = useGridFallback ? pickFeaturedShots(filteredShots) : filteredShots;
+            const railShotsRaw = useGridFallback ? pickFeaturedShots(filteredShots) : filteredShots;
+            const railShots = [...railShotsRaw];
             const featuredNames = new Set(railShots.map((shot) => shot.name));
             const gridShots = useGridFallback
                 ? filteredShots.filter((shot) => !featuredNames.has(shot.name))
                 : [];
+
+            if (gridShots.length > 0) {
+                railShots.push({
+                    isMoreCard: true,
+                    count: gridShots.length,
+                    name: `__more_shots_placeholder_${gridShots.length}__`
+                });
+            }
 
             const primaryHead = document.getElementById("overviewPrimaryHead");
             if (primaryHead) {
                 primaryHead.innerHTML = renderOverviewPrimaryHeader(useGridFallback, isMobileOverview, railShots.length);
             }
 
-            const gridPanel = document.getElementById("overviewGridPanel");
-            const gridHead = document.getElementById("overviewGridHead");
-            if (gridPanel) {
-                gridPanel.hidden = !gridShots.length;
-            }
-            if (gridHead && gridShots.length) {
-                gridHead.innerHTML = renderOverviewGridHeader(gridShots.length);
-            }
-
             syncShotCardCollection(document.getElementById("shotRailPrimary"), railShots);
-            syncShotCardCollection(document.getElementById("shotGridSecondary"), gridShots, { compact: true });
             requestAnimationFrame(() => refreshShotCardTitleMarquees(shotList));
         }
 
@@ -3573,7 +3332,12 @@
         }
 
         function closeShotDetailPanel(options = {}) {
-            const { preserveSelection = false } = options;
+            const { preserveSelection = false, fromPopState = false } = options;
+
+            if (!fromPopState && history.state?.panel === "shotDetail") {
+                history.back();
+                return;
+            }
 
             if (!preserveSelection) {
                 selectedShotName = null;
@@ -3689,6 +3453,10 @@
         shotDetailBackdrop?.addEventListener("click", () => closeShotDetailPanel());
         shotDetailPanel?.addEventListener("click", (event) => event.stopPropagation());
         document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && configModalBackdrop && !configModalBackdrop.hidden) {
+                window.closeConfigModal();
+                return;
+            }
             if (event.key === "Escape" && shotDetailPanel.classList.contains("is-open")) {
                 closeShotDetailPanel();
             }
