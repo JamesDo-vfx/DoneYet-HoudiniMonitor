@@ -35,8 +35,6 @@ except Exception:
 sys.path.insert(0, SCRIPTS_PYTHON_DIR)
 
 import doneyet_background_runtime
-import firebase_company_auth
-import firebase_rtdb_auth
 from doneyet_modes import job_model
 from jd_metadata import (
     JD_BUILD_ID,
@@ -628,212 +626,33 @@ def _merge_gpu_metrics_row(row_dict, gpu_metrics_map):
 
 
 def _build_firebase_renders_url(raw_url):
-    return firebase_rtdb_auth.normalize_database_url(raw_url)
-
-
-def _firebase_public_config(config=None):
-    source = config if isinstance(config, dict) else CONFIG_CACHE
-    return firebase_company_auth.auth_public_config(source)
-
-
-def _firebase_service_credentials(config=None):
-    source = config if isinstance(config, dict) else CONFIG_CACHE
-    return firebase_rtdb_auth.service_credentials_from_settings(source)
-
-
-def _firebase_service_sign_in(config=None, force_refresh=False):
-    creds = _firebase_service_credentials(config)
-    return firebase_rtdb_auth.sign_in_email_password(
-        creds.get("api_key", ""),
-        creds.get("email", ""),
-        creds.get("password", ""),
-        force_refresh=force_refresh,
-    )
-
-
-def _firebase_service_request(method, url, payload=None, config=None, timeout=10, force_refresh=False):
-    sign_in = _firebase_service_sign_in(config=config, force_refresh=force_refresh)
-    if not sign_in.get("ok"):
-        return sign_in
-    id_token = str(((sign_in.get("data") or {}).get("idToken") or "")).strip()
-    result = firebase_rtdb_auth.rtdb_request(method, url, payload=payload, id_token=id_token, timeout=timeout)
-    if result.get("ok") or force_refresh:
-        return result
-    return _firebase_service_request(
-        method,
-        url,
-        payload=payload,
-        config=config,
-        timeout=timeout,
-        force_refresh=True,
-    )
+    raw = (raw_url or "").strip()
+    if (not raw) or (not raw.startswith("http")):
+        return ""
+    try:
+        parsed = urlparse(raw)
+        host = (parsed.netloc or "").lower().split(":", 1)[0]
+        if ("firebaseio.com" not in host) and ("firebasedatabase.app" not in host):
+            return ""
+    except Exception:
+        return ""
+    cleaned = raw.rstrip("/")
+    cleaned = re.sub(r"/renders(?:\.json)?$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned + "/renders.json"
 
 
 def _firebase_mirror_state(config=None):
     source = config if isinstance(config, dict) else CONFIG_CACHE
-    public_config = _firebase_public_config(source)
-    session_company_id = ""
-    try:
-        import firebase_auth_session
-        session_company_id = str((firebase_auth_session.load_session() or {}).get("company_id") or "").strip()
-    except Exception:
-        session_company_id = ""
-    mirror_url = firebase_rtdb_auth.company_renders_url(
-        (source or {}).get("firebase_url", FIREBASE_URL) or FIREBASE_URL,
-        session_company_id or (source or {}).get("firebase_company_id", ""),
-    )
-    service_creds = _firebase_service_credentials(source)
-    service_ready = bool(
-        service_creds.get("api_key")
-        and service_creds.get("database_url")
-        and (service_creds.get("company_id") or session_company_id)
-        and service_creds.get("email")
-        and service_creds.get("password")
-    )
+    mirror_url = _build_firebase_renders_url((source or {}).get("firebase_url", FIREBASE_URL) or FIREBASE_URL)
     return {
-        "firebase_database_url": public_config.get("databaseURL", ""),
         "firebase_url": mirror_url,
-        "firebase_company_id": session_company_id or public_config.get("companyId", ""),
-        "firebase_auth_enabled": bool(public_config.get("authEnabled")),
-        "firebase_public_config": public_config,
-        "firebase_service_ready": service_ready,
         "firebase_mirror_enabled": bool(mirror_url),
         "local_only": not bool(mirror_url),
     }
 
 
-def _firebase_company_mirror_url(config=None, company_id=""):
-    source = config if isinstance(config, dict) else CONFIG_CACHE
-    resolved_company = str(company_id or "").strip() or str(_firebase_mirror_state(source).get("firebase_company_id") or "").strip()
-    return firebase_rtdb_auth.company_renders_url(
-        (source or {}).get("firebase_url", FIREBASE_URL) or FIREBASE_URL,
-        resolved_company,
-    )
-
-
 def _firebase_sync_allowed(config=None):
     return _firebase_mirror_state(config).get("firebase_mirror_enabled", False)
-
-
-def _parse_bearer_token(handler):
-    try:
-        auth_header = str(handler.headers.get("Authorization") or "").strip()
-    except Exception:
-        auth_header = ""
-    if auth_header.lower().startswith("bearer "):
-        return auth_header[7:].strip()
-    return ""
-
-
-def _firebase_lookup_user_context(id_token, config=None):
-    source = config if isinstance(config, dict) else CONFIG_CACHE
-    return firebase_company_auth.lookup_user_context(source, id_token)
-
-
-def _require_cloud_role(handler, allowed_roles=("owner", "admin"), config=None):
-    mirror_state = _firebase_mirror_state(config)
-    if not mirror_state.get("firebase_auth_enabled"):
-        return {"ok": False, "status_code": 503, "message": "Firebase Auth is not configured for this dashboard."}
-
-    id_token = _parse_bearer_token(handler)
-    if not id_token:
-        return {"ok": False, "status_code": 401, "message": "Firebase login required."}
-
-    context = _firebase_lookup_user_context(id_token, config=config)
-    if not context.get("ok"):
-        error_code = str(context.get("code") or "").strip().lower()
-        status_code = 401
-        if error_code in ("membership_inactive", "not_invited"):
-            status_code = 403
-        return {
-            "ok": False,
-            "status_code": status_code,
-            "message": firebase_rtdb_auth.firebase_error_text(context, "Firebase login verification failed."),
-        }
-
-    company_id = str(context.get("company_id") or "").strip()
-    expected_company = str(mirror_state.get("firebase_company_id") or "").strip()
-    role = str(context.get("role") or "").strip().lower()
-    if expected_company and company_id != expected_company:
-        return {"ok": False, "status_code": 403, "message": "Signed-in user belongs to a different company."}
-    if allowed_roles and role not in tuple(allowed_roles):
-        return {"ok": False, "status_code": 403, "message": "You do not have permission to perform this action."}
-    context["id_token"] = id_token
-    return context
-
-
-def _require_signed_in_user(handler, config=None):
-    return _require_cloud_role(handler, allowed_roles=("owner", "admin", "viewer"), config=config)
-
-
-def _public_runtime_payload():
-    mirror_state = _firebase_mirror_state(CONFIG_CACHE)
-    return {
-        "auth_required": True,
-        "tracker_mode": TRACKER_MODE,
-        "firebase_auth_enabled": mirror_state.get("firebase_auth_enabled", False),
-        "firebase_public_config": mirror_state.get("firebase_public_config", {}),
-        "firebase_company_id": mirror_state.get("firebase_company_id", ""),
-        "view_source_default": "local_db",
-        "view_sources": ["local_db", "firebase_mirror"],
-        "product_name": JD_PRODUCT_NAME,
-        "build_id": JD_BUILD_ID,
-        "owner": JD_OWNER,
-        "copyright": JD_COPYRIGHT,
-        "copyright_short": JD_COPYRIGHT_SHORT,
-    }
-
-
-def _authenticated_runtime_payload():
-    watchdog_status = _build_watchdog_runtime_status(DB_PATH)
-    mirror_state = _firebase_mirror_state(CONFIG_CACHE)
-    db_path = str(DB_PATH or "").replace("\\", "/")
-    db_file_name = os.path.basename(DB_PATH) if DB_PATH else ""
-    return {
-        "tracker_mode": TRACKER_MODE,
-        "firebase_url_default": FIREBASE_URL,
-        "firebase_database_url": mirror_state.get("firebase_database_url", ""),
-        "firebase_company_id": mirror_state.get("firebase_company_id", ""),
-        "firebase_auth_enabled": mirror_state.get("firebase_auth_enabled", False),
-        "firebase_public_config": mirror_state.get("firebase_public_config", {}),
-        "firebase_service_ready": mirror_state.get("firebase_service_ready", False),
-        "firebase_mirror_enabled": mirror_state.get("firebase_mirror_enabled", False),
-        "firebase_sync_enabled": mirror_state.get("firebase_mirror_enabled", False),
-        "local_only_mode": mirror_state.get("local_only", True),
-        "data_authority": "sqlite",
-        "dashboard_read_source": "sqlite_truth",
-        "dashboard_read_label": "SQLite truth",
-        "view_source_default": "local_db",
-        "view_sources": ["local_db", "firebase_mirror"],
-        "db_path": db_path,
-        "db_file_name": db_file_name,
-        "crash_detection_status": watchdog_status,
-        "watchdog_status": watchdog_status,
-        "product_name": JD_PRODUCT_NAME,
-        "build_id": JD_BUILD_ID,
-        "owner": JD_OWNER,
-        "copyright": JD_COPYRIGHT,
-        "copyright_short": JD_COPYRIGHT_SHORT,
-    }
-
-
-def _json_success(handler, payload, status_code=200):
-    response_json = json.dumps(payload).encode("utf-8")
-    handler.send_response(status_code)
-    handler.send_header("Content-type", "application/json")
-    handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    handler.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-    handler.send_header("Pragma", "no-cache")
-    handler.send_header("Expires", "0")
-    handler.send_header("Content-Length", len(response_json))
-    handler.end_headers()
-    if handler.command != "HEAD":
-        handler.wfile.write(response_json)
-
-
-def _json_error(handler, message, status_code=400, code="error"):
-    _json_success(handler, {"ok": False, "code": code, "message": str(message or "").strip()}, status_code=status_code)
 
 
 def _sync_firebase(method, keys=None, clear_all=False):
@@ -849,20 +668,25 @@ def _sync_firebase(method, keys=None, clear_all=False):
     try:
         if clear_all:
             print("[SYNC] Mirror delete requested: clear all mirrored records from SQLite truth.")
-            result = _firebase_service_request("DELETE", url, config=CONFIG_CACHE, timeout=5)
+            req = urllib.request.Request(url, method="DELETE")
         elif keys:
             unique_keys = list(set([k for k in keys if k]))
             if not unique_keys:
                 return
             payload = {k: None for k in unique_keys}
+            json_data = json.dumps(payload).encode("utf-8")
             print(f"[SYNC] Mirror delete requested for {len(unique_keys)} key(s).")
-            result = _firebase_service_request("PATCH", url, payload=payload, config=CONFIG_CACHE, timeout=5)
+            req = urllib.request.Request(
+                url, 
+                data=json_data, 
+                method="PATCH", 
+                headers={"Content-Type": "application/json"}
+            )
         else:
             return
 
-        if not result.get("ok"):
-            raise RuntimeError(firebase_rtdb_auth.firebase_error_text(result, "firebase_delete_failed"))
-        print(f"[SYNC] Firebase mirror delete OK: HTTP {int(result.get('status_code', 200) or 200)}")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print(f"[SYNC] Firebase mirror delete OK: HTTP {getattr(resp, 'status', 200)}")
     except Exception as e:
         print(f"[SYNC] Firebase mirror delete failed ({method}): {e}")
 
@@ -911,23 +735,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=BASE_PATH, **kwargs)
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.end_headers()
-
     def do_HEAD(self):
         self.do_GET()
 
     def do_POST(self):
-        if self.path == "/api/auth/google/complete":
-            self.handle_api_auth_google_complete()
-            return
-        if self.path == "/api/company/invite":
-            self.handle_api_company_invite()
-            return
         if self.path == "/api/delete":
             self.handle_api_delete()
             return
@@ -937,33 +748,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/sync_to_firebase":
             self.handle_api_sync_to_firebase()
             return
-        if self.path == "/api/firebase_mirror_clear":
-            self.handle_api_firebase_mirror_clear()
-            return
-        if self.path == "/api/firebase_mirror_delete":
-            self.handle_api_firebase_mirror_delete()
-            return
         return super().do_POST()
-
-    def _read_json_body(self):
-        content_length = int(self.headers.get("Content-Length", 0) or 0)
-        if content_length <= 0:
-            return {}
-        raw = self.rfile.read(content_length).decode("utf-8", errors="replace")
-        payload = json.loads(raw) if raw else {}
-        return payload if isinstance(payload, dict) else {}
 
     def handle_api_sync_to_firebase(self):
         try:
             refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                self.send_error(int(auth_check.get("status_code", 403) or 403), auth_check.get("message", "Forbidden"))
-                return
-            result = sync_sqlite_to_firebase(
-                company_id_override=auth_check.get("company_id", ""),
-                id_token_override=auth_check.get("id_token", ""),
-            )
+            result = sync_sqlite_to_firebase()
             status_code = 200 if result.get("ok") else 400
             response_json = json.dumps(result).encode("utf-8")
             self.send_response(status_code)
@@ -978,130 +768,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, f"Firebase Sync Error: {str(e)}")
 
-    def handle_api_auth_google_complete(self):
-        try:
-            refresh_runtime_config()
-            params = self._read_json_body()
-            id_token = str(params.get("idToken") or "").strip()
-            refresh_token = str(params.get("refreshToken") or "").strip()
-            if not id_token:
-                _json_error(self, "Firebase Google idToken is required.", status_code=400, code="missing_id_token")
-                return
-            result = firebase_company_auth.activate_invited_user(CONFIG_CACHE, id_token, refresh_token=refresh_token)
-            if not result.get("ok"):
-                _json_error(
-                    self,
-                    firebase_rtdb_auth.firebase_error_text(result, "Google sign-in could not be activated for this company."),
-                    status_code=403 if result.get("code") == "not_invited" else 400,
-                    code=str(result.get("code") or "activation_failed"),
-                )
-                return
-            _json_success(
-                self,
-                {
-                    "ok": True,
-                    "session": result.get("session") or {},
-                    "membership_state": result.get("membership_state", "existing"),
-                    "invite_id": result.get("invite_id", ""),
-                },
-            )
-        except Exception as e:
-            _json_error(self, str(e), status_code=500, code="activation_exception")
-
-    def handle_api_company_invite(self):
-        try:
-            refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(self, auth_check.get("message", "Forbidden"), status_code=int(auth_check.get("status_code", 403) or 403), code="forbidden")
-                return
-            params = self._read_json_body()
-            invite_email = str(params.get("email") or "").strip()
-            invite_role = str(params.get("role") or "viewer").strip().lower() or "viewer"
-            result = firebase_company_auth.create_company_invite(CONFIG_CACHE, auth_check, invite_email, role=invite_role)
-            if not result.get("ok"):
-                _json_error(self, firebase_rtdb_auth.firebase_error_text(result, "Failed to create invite."), status_code=400, code="invite_failed")
-                return
-            _json_success(self, {"ok": True, "invite": result.get("invite") or {}, "created": bool(result.get("created", False))})
-        except Exception as e:
-            _json_error(self, str(e), status_code=500, code="invite_exception")
-
-    def handle_api_firebase_mirror_clear(self):
-        try:
-            refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                self.send_error(int(auth_check.get("status_code", 403) or 403), auth_check.get("message", "Forbidden"))
-                return
-            url = _firebase_company_mirror_url(CONFIG_CACHE, company_id=auth_check.get("company_id", ""))
-            if not url:
-                self.send_error(400, "Firebase company mirror is not configured")
-                return
-            read_result = firebase_rtdb_auth.rtdb_request("GET", url, id_token=auth_check.get("id_token", ""), timeout=10)
-            if not read_result.get("ok"):
-                self.send_error(502, firebase_rtdb_auth.firebase_error_text(read_result, "Firebase mirror read failed"))
-                return
-            payload = read_result.get("data") or {}
-            deleted_count = len(payload) if isinstance(payload, dict) else 0
-            if deleted_count:
-                clear_payload = {str(key): None for key in payload.keys()}
-                write_result = firebase_rtdb_auth.rtdb_request("PATCH", url, payload=clear_payload, id_token=auth_check.get("id_token", ""), timeout=10)
-                if not write_result.get("ok"):
-                    self.send_error(502, firebase_rtdb_auth.firebase_error_text(write_result, "Firebase mirror clear failed"))
-                    return
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "deletedCount": deleted_count}).encode("utf-8"))
-        except Exception as e:
-            self.send_error(500, f"Firebase Mirror Clear Error: {str(e)}")
-
-    def handle_api_firebase_mirror_delete(self):
-        try:
-            refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                self.send_error(int(auth_check.get("status_code", 403) or 403), auth_check.get("message", "Forbidden"))
-                return
-            params = self._read_json_body()
-            keys = [str(value or "").strip() for value in (params.get("keys") or []) if str(value or "").strip()]
-            if not keys:
-                self.send_error(400, "Missing keys")
-                return
-            url = _firebase_company_mirror_url(CONFIG_CACHE, company_id=auth_check.get("company_id", ""))
-            if not url:
-                self.send_error(400, "Firebase company mirror is not configured")
-                return
-            payload = {key: None for key in sorted(set(keys))}
-            write_result = firebase_rtdb_auth.rtdb_request("PATCH", url, payload=payload, id_token=auth_check.get("id_token", ""), timeout=10)
-            if not write_result.get("ok"):
-                self.send_error(502, firebase_rtdb_auth.firebase_error_text(write_result, "Firebase mirror delete failed"))
-                return
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "deletedCount": len(payload)}).encode("utf-8"))
-        except Exception as e:
-            self.send_error(500, f"Firebase Mirror Delete Error: {str(e)}")
-
     def handle_api_clear_all(self):
         if not DB_PATH or not os.path.exists(DB_PATH):
             self.send_error(404, "Database file not found or not configured")
             return
 
         try:
-            refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(
-                    self,
-                    auth_check.get("message", "Forbidden"),
-                    status_code=int(auth_check.get("status_code", 403) or 403),
-                    code="forbidden",
-                )
-                return
             print(f"[WEBUI] Clear action target=local_db db_path={DB_PATH}")
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
@@ -1129,16 +801,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            refresh_runtime_config()
-            auth_check = _require_cloud_role(self, allowed_roles=("owner", "admin"), config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(
-                    self,
-                    auth_check.get("message", "Forbidden"),
-                    status_code=int(auth_check.get("status_code", 403) or 403),
-                    code="forbidden",
-                )
-                return
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length).decode('utf-8')
             params = json.loads(post_data)
@@ -1206,23 +868,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(500, f"Delete Error: {str(e)}")
 
     def do_GET(self):
-        if self.path == "/api/public_bootstrap":
-            refresh_runtime_config()
-            _json_success(self, _public_runtime_payload())
-            return
-        if self.path == "/api/app_bootstrap":
-            refresh_runtime_config()
-            auth_check = _require_signed_in_user(self, config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(
-                    self,
-                    auth_check.get("message", "Firebase login required."),
-                    status_code=int(auth_check.get("status_code", 401) or 401),
-                    code="auth_required",
-                )
-                return
-            _json_success(self, _authenticated_runtime_payload())
-            return
         # API Endpoint for Local SQLite Data
         if self.path == "/api/data":
             self.handle_api_data()
@@ -1230,15 +875,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/runtime_status" or self.path == "/api/service_status":
             self.handle_api_runtime_status()
             return
-        if self.path.startswith("/auth/bridge"):
-            bridge_path = os.path.join(BASE_PATH, "auth_bridge.html")
-            if os.path.exists(bridge_path):
-                self.send_response(200)
-                self.send_header("Content-type", "text/html; charset=utf-8")
-                self.end_headers()
-                with open(bridge_path, "rb") as f:
-                    self.wfile.write(f.read())
-                return
             
         if self.path in ["/", "/index.html"]:
             if os.path.exists(INDEX_PATH):
@@ -1248,36 +884,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 with open(INDEX_PATH, "rb") as f:
                     self.wfile.write(f.read())
                 return
-        if self.path == "/server_runtime.json":
-            refresh_runtime_config()
-            response_json = json.dumps(_public_runtime_payload()).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.send_header("Content-Length", len(response_json))
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(response_json)
-            return
         return super().do_GET()
 
     def handle_api_data(self):
         if not DB_PATH or not os.path.exists(DB_PATH):
             self.send_error(404, "Database file not found or not configured")
             return
-        if self.command != "HEAD":
-            refresh_runtime_config()
-            auth_check = _require_signed_in_user(self, config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(
-                    self,
-                    auth_check.get("message", "Firebase login required."),
-                    status_code=int(auth_check.get("status_code", 401) or 401),
-                    code="auth_required",
-                )
-                return
 
         try:
             started_at = time.time()
@@ -1310,15 +922,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         try:
             started_at = time.time()
             refresh_runtime_config()
-            auth_check = _require_signed_in_user(self, config=CONFIG_CACHE)
-            if not auth_check.get("ok"):
-                _json_error(
-                    self,
-                    auth_check.get("message", "Firebase login required."),
-                    status_code=int(auth_check.get("status_code", 401) or 401),
-                    code="auth_required",
-                )
-                return
             payload = _build_watchdog_runtime_status(DB_PATH)
             response_json = json.dumps(payload).encode("utf-8")
             self.send_response(200)
@@ -1336,12 +939,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(500, f"Runtime Status Error: {str(e)}")
 
 
-def sync_sqlite_to_firebase(company_id_override="", id_token_override=""):
+def sync_sqlite_to_firebase():
     """Push SQLite truth to the optional Firebase mirror and return a status payload."""
     started_at = time.time()
     mirror_state = _firebase_mirror_state()
-    mirror_url = _firebase_company_mirror_url(CONFIG_CACHE, company_id=company_id_override)
-    if not mirror_url:
+    if not mirror_state.get("firebase_mirror_enabled"):
         _warn_once("sync.local_only", "[SYNC] Local-only mode active; Firebase mirror sync skipped.")
         return {
             "ok": False,
@@ -1349,7 +951,7 @@ def sync_sqlite_to_firebase(company_id_override="", id_token_override=""):
             "message": "Firebase mirror is not configured. Tracker remains local-only on SQLite.",
             "pushed": 0,
         }
-    print(f"[SYNC] Mirror sync requested: SQLite truth -> Firebase mirror ({mirror_url})")
+    print(f"[SYNC] Mirror sync requested: SQLite truth -> Firebase mirror ({mirror_state.get('firebase_url', '')})")
 
     if not DB_PATH or not os.path.exists(DB_PATH):
         print(f"[SYNC] SKIPPED: Local database not found at {DB_PATH}")
@@ -1392,7 +994,7 @@ def sync_sqlite_to_firebase(company_id_override="", id_token_override=""):
                 "pushed": 0,
             }
 
-        url = mirror_url
+        url = mirror_state.get("firebase_url", "")
         if not url:
             print("[SYNC] SKIPPED: Firebase mirror URL is invalid.")
             return {
@@ -1414,28 +1016,28 @@ def sync_sqlite_to_firebase(company_id_override="", id_token_override=""):
                 "message": "Firebase mirror already matches the latest SQLite snapshot.",
                 "pushed": 0,
             }
-        if id_token_override:
-            result = firebase_rtdb_auth.rtdb_request("PATCH", url, payload=data, id_token=id_token_override, timeout=10)
-        else:
-            result = _firebase_service_request("PATCH", url, payload=data, config=CONFIG_CACHE, timeout=10)
-        if not result.get("ok"):
-            raise RuntimeError(firebase_rtdb_auth.firebase_error_text(result, "firebase_sync_failed"))
-        _FIREBASE_SYNC_CACHE["signature"] = sync_signature
-        _FIREBASE_SYNC_CACHE["url"] = url
-        status_code = int(result.get("status_code", 200) or 200)
-        _perf_log("sync_sqlite_to_firebase", started_at, pushed=len(data), status=status_code)
-        print(
-            "[SYNC] Firebase mirror excluded local-only fields: "
-            + ", ".join(f"{key}=>{','.join(value) if value else 'none'}" for key, value in sorted(excluded_map.items())[:8])
+        req = urllib.request.Request(
+            url,
+            data=json_data,
+            method="PATCH",
+            headers={"Content-Type": "application/json"}
         )
-        print(f"[SYNC] OK! Mirrored {len(data)} SQLite record(s) to Firebase.")
-        return {
-            "ok": True,
-            "reason": "synced",
-            "message": f"Successfully mirrored {len(data)} SQLite record(s) to Firebase.",
-            "pushed": len(data),
-            "status_code": status_code,
-        }
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            _FIREBASE_SYNC_CACHE["signature"] = sync_signature
+            _FIREBASE_SYNC_CACHE["url"] = url
+            _perf_log("sync_sqlite_to_firebase", started_at, pushed=len(data), status=getattr(resp, "status", 200))
+            print(
+                "[SYNC] Firebase mirror excluded local-only fields: "
+                + ", ".join(f"{key}=>{','.join(value) if value else 'none'}" for key, value in sorted(excluded_map.items())[:8])
+            )
+            print(f"[SYNC] OK! Mirrored {len(data)} SQLite record(s) to Firebase.")
+            return {
+                "ok": True,
+                "reason": "synced",
+                "message": f"Successfully mirrored {len(data)} SQLite record(s) to Firebase.",
+                "pushed": len(data),
+                "status_code": getattr(resp, "status", 200),
+            }
             
     except Exception as e:
         _perf_log("sync_sqlite_to_firebase", started_at, pushed=0, error="1")
@@ -1495,12 +1097,7 @@ def write_runtime_info():
         "db_path": DB_PATH.replace("\\", "/"),
         "public_mode": "cloudflared" if PUBLIC_URL else "none",
         "tracker_mode": TRACKER_MODE,
-        "firebase_url_default": FIREBASE_URL,
-        "firebase_database_url": mirror_state.get("firebase_database_url", ""),
-        "firebase_company_id": mirror_state.get("firebase_company_id", ""),
-        "firebase_auth_enabled": mirror_state.get("firebase_auth_enabled", False),
-        "firebase_public_config": mirror_state.get("firebase_public_config", {}),
-        "firebase_service_ready": mirror_state.get("firebase_service_ready", False),
+        "firebase_url_default": "",
         "firebase_mirror_enabled": mirror_state.get("firebase_mirror_enabled", False),
         "firebase_sync_enabled": mirror_state.get("firebase_mirror_enabled", False),
         "local_only_mode": mirror_state.get("local_only", True),
